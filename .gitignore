@@ -1,0 +1,17 @@
+# External
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Internal
+*.egg-info/
+*.pyc
+__pycache__/
+build/
+dist/
+requirements-dev.txt
+requirements.txt
+var/
+.venv/
+venv/

@@ -1,0 +1,149 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools"]
+
+[project]
+authors = [
+    { name = "ticdenis", email = "navarrodenis940503@outlook.com" },
+]
+maintainers = [
+    { name = "ticdenis", email = "navarrodenis940503@outlook.com" }
+]
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = []
+description = "uvtask is a modern, fast, and flexible Python task runner and test automation tool designed to simplify development workflows. It supports running, organizing, and managing tasks or tests in Python projects with an emphasis on ease of use and speed."
+dynamic = ["version"]
+keywords = [
+    "uv", 
+    "uvx",
+    "scripts", 
+    "tool", 
+    "pyproject",
+    "task",
+    "runner",
+]
+license = { text = "MIT" }
+name = "uvtask"
+readme = "README.md"
+requires-python = ">=3.13"
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.2",
+    "pip-licenses>=5.5.0",
+    "ruff>=0.14.10",
+    "setuptools>=80.9.0",
+    "twine>=6.2.0",
+    "ty>=0.0.4",
+]
+
+[project.urls]
+"documentation" = "https://aiopy.github.io/python-uvtask/"
+"repository" = "https://github.com/aiopy/python-uvtask"
+
+[tool.setuptools.dynamic]
+version = { attr = "uvtask.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["uvtask*"]
+
+[tool.setuptools.package-data]
+"uvtask" = ["py.typed"]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B404", "B602"]
+
+[tool.pip-licenses]
+allow-only = "Apache;BSD;MIT"
+ignore-packages = [
+]
+partial-match = true
+
+[tool.ruff]
+cache-dir = "var/ruff"
+line-length = 140
+target-version = "py313"
+respect-gitignore = true
+fix = true
+lint.select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "C90",  # mccabe
+    "N",    # pep8-naming
+    "PL",   # pylint
+    "RUF",  # ruff-specific
+]
+lint.ignore = [
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-single-line = false
+known-first-party = ["uvtask"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+exclude = [
+    "tests/fixtures/**",
+    "var",
+]
+
+[tool.run-script]
+install = "uv sync --frozen --no-dev"
+upgrade-install = "uv sync --frozen --no-dev --upgrade --refresh"
+dev-install = "uv sync --dev --all-extras"
+upgrade-dev-install = "uv sync --dev --all-extras --upgrade --refresh"
+deploy = "uv build && uv publish"
+docs = "python3 -m mkdocs build -f docs_src/config/en/mkdocs.yml && python3 -m mkdocs build -f docs_src/config/es/mkdocs.yml"
+dev-docs = "python3 -m mkdocs serve -f docs_src/config/en/mkdocs.yml"
+code-formatter = "uv run ruff format uvtask tests $@"
+"security-analysis:licenses" = "uv run pip-licenses"
+"security-analysis:vulnerabilities" = "uv run bandit -r -c pyproject.toml uvtask tests"
+"static-analysis:linter" = "uv run ruff check uvtask tests"
+"static-analysis:types" = "uv run ty check uvtask tests"
+clean = """python3 -c \"
+from glob import iglob
+from shutil import rmtree
+
+for pathname in ['./build', './*.egg-info', './dist', './var', '**/__pycache__']:
+  for path in iglob(pathname, recursive=True):
+    rmtree(path, ignore_errors=True)
+\""""
+
+[project.scripts]
+uvtask = "uvtask.cli:main"
+run = "uvtask.cli:main"
+run-script = "uvtask.cli:main"
