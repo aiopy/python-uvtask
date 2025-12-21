@@ -5,18 +5,12 @@
 
 **uvtask** is a modern, fast, and flexible Python task runner and test automation tool designed to simplify development workflows. It supports running, organizing, and managing tasks or tests in Python projects with an emphasis on ease of use and speed. ⚡
 
-## 📦 Installation
-
-```bash
-uv add --dev uvtask
-```
-
 ## 🎯 Quick Start
 
 Run tasks defined in your `pyproject.toml`:
 
 ```shell
-uvx uvtask run <task_name>
+uvx uvtask <task_name>
 ```
 
 ## 📝 Configuration
@@ -25,15 +19,7 @@ Define your tasks in `pyproject.toml` under the `[tool.run-script]` section:
 
 ```toml
 [tool.run-script]
-code-formatter = "uv run ruff format uvtask tests $@"
-"security-analysis:licenses" = "uv run pip-licenses"
-"security-analysis:vulnerabilities" = "uv run bandit -r -c pyproject.toml uvtask tests"
-"static-analysis:linter" = "uv run ruff check uvtask tests"
-"static-analysis:types" = "uv run ty check uvtask tests"
-test = "uv run pytest"
-unit-tests = "uv run pytest tests/unit"
-integration-tests = "uv run pytest tests/integration"
-functional-tests = "uv run pytest -n1 tests/functional"
+hello-world = "echo 'hello world'"
 ```
 
 ## 🛠️ Development
