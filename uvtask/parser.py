@@ -11,6 +11,21 @@ class ArgvParser:
     def __init__(self, argv_list: list[str] | None = None):
         self._argv = argv_list if argv_list is not None else argv
 
+    def _handle_color_option(self, arg: str, skip_next: bool) -> tuple[bool, bool]:
+        if skip_next:
+            preference_manager.set_preference_from_string(arg)
+            return False, True
+        if arg == "--color":
+            return True, True
+        if arg.startswith("--color="):
+            color_val = arg.split("=", 1)[1]
+            preference_manager.set_preference_from_string(color_val)
+            return False, True
+        return False, False
+
+    def _is_global_flag(self, arg: str) -> bool:
+        return arg in ["-V", "--version", "-h", "--help", "--no-hooks", "--ignore-scripts"]
+
     def parse_global_options(self, scripts: dict[str, str | list[str]]) -> tuple[str | None, list[str], int, int]:
         script_args_list = []
         command_name = None
@@ -19,27 +34,17 @@ class ArgvParser:
         verbose_count = 0
 
         for i, arg in enumerate(self._argv[1:], 1):
-            if skip_next:
-                skip_next = False
-                # Process the color value (current arg is the value after --color)
-                preference_manager.set_preference_from_string(arg)
+            skip_next, handled = self._handle_color_option(arg, skip_next)
+            if handled:
                 continue
-            if arg == "--color":
-                skip_next = True
-                continue
-            if arg.startswith("--color="):
-                color_val = arg.split("=", 1)[1]
-                preference_manager.set_preference_from_string(color_val)
-                continue
+
             if arg in ["-q", "--quiet"]:
                 quiet_count += 1
                 continue
             if arg in ["-v", "--verbose"]:
                 verbose_count += 1
                 continue
-            if arg in ["-V", "--version", "-h", "--help"]:
-                continue
-            if arg in ["--no-hooks", "--ignore-scripts"]:
+            if self._is_global_flag(arg):
                 continue
             if arg in scripts or arg == "help":
                 command_name = arg

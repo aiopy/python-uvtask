@@ -13,7 +13,7 @@ class TestCommandExecutor:
         assert exit_code == 0
         mock_run.assert_called_once()
 
-    @patch("uvtask.executor.subprocess.run")
+    @patch("uvtask.executor.run")
     def test_execute_with_quiet(self, mock_run: MagicMock) -> None:
         mock_run.return_value = CompletedProcess(["echo", "test"], 0)
         executor = CommandExecutor()
@@ -22,7 +22,7 @@ class TestCommandExecutor:
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["stdout"] is not None or call_kwargs.get("stdout") is None
 
-    @patch("uvtask.executor.subprocess.run")
+    @patch("uvtask.executor.run")
     def test_execute_with_double_quiet(self, mock_run: MagicMock) -> None:
         mock_run.return_value = CompletedProcess(["echo", "test"], 0)
         executor = CommandExecutor()

@@ -4,13 +4,13 @@ import argparse
 import re
 from collections.abc import Iterable
 from sys import exit, stderr
-from typing import ClassVar, NoReturn
+from typing import ClassVar, NoReturn, Sequence
 
 from uvtask.colors import color_service, preference_manager
 
 
 class CommandMatcher:
-    def find_similar(self, command: str, available_commands: list[str]) -> str | None:
+    def find_similar(self, command: str, available_commands: list[str]) -> str | None:  # noqa: C901
         if not available_commands:
             return None
 
@@ -79,13 +79,17 @@ class OptionSorter:
     }
 
     @classmethod
-    def sort(cls, lines: list[str]) -> list[str]:
+    def _is_option_line(cls, line: str, stripped: str) -> bool:
+        return bool(stripped and (stripped.startswith("-") or (line.startswith("  ") and not line.startswith("    ") and stripped)))
+
+    @classmethod
+    def _group_options(cls, lines: list[str]) -> list[list[str]]:
         options = []
         current_option = []
 
         for line in lines:
             stripped = line.strip()
-            is_option_line = stripped and (stripped.startswith("-") or (line.startswith("  ") and not line.startswith("    ") and stripped))
+            is_option_line = cls._is_option_line(line, stripped)
 
             if is_option_line:
                 if current_option:
@@ -103,22 +107,31 @@ class OptionSorter:
         if current_option:
             options.append(current_option)
 
-        def get_order(option_lines: list[str]) -> int:
-            for line in option_lines:
-                sorted_opts = sorted(cls._ORDER_MAP.items(), key=lambda x: len(x[0]), reverse=True)
-                for opt, order in sorted_opts:
-                    if opt in line:
-                        return order
-            return 999
+        return options
 
-        options.sort(key=get_order)
+    @classmethod
+    def _get_order(cls, option_lines: list[str]) -> int:
+        sorted_opts = sorted(cls._ORDER_MAP.items(), key=lambda x: len(x[0]), reverse=True)
+        for line in option_lines:
+            for opt, order in sorted_opts:
+                if opt in line:
+                    return order
+        return 999
 
+    @classmethod
+    def _flatten_options(cls, options: list[list[str]]) -> list[str]:
         result = []
         for option in options:
             for line in option:
                 if line.strip():
                     result.append(line)
         return result
+
+    @classmethod
+    def sort(cls, lines: list[str]) -> list[str]:
+        options = cls._group_options(lines)
+        options.sort(key=cls._get_order)
+        return cls._flatten_options(options)
 
 
 class HelpTextProcessor:
@@ -130,6 +143,70 @@ class HelpTextProcessor:
         result = self._process_sections(lines)
         return self._add_section_spacing(result)
 
+    def _process_section_header(self, line: str, stripped: str) -> str:
+        if not preference_manager.supports_color():
+            if "Global options" in stripped:
+                return "Global options:"
+            if "Commands" in stripped and ":" in stripped:
+                return "Commands:"
+        return line
+
+    def _handle_global_options_start(self, result: list[str], processed_line: str) -> None:
+        if result and result[-1].strip():
+            result.append("")
+        result.append(processed_line)
+
+    def _handle_global_options_end(self, result: list[str], global_options_lines: list[str], line: str, stripped: str) -> None:
+        sorted_lines = OptionSorter.sort(global_options_lines)
+        result.extend(sorted_lines)
+        if "Use `" in stripped or "for more information" in stripped.lower():
+            result.append("")
+        result.append(line)
+
+    def _check_description_done(self, lines: list[str], i: int) -> bool:
+        if i + 1 >= len(lines):
+            return False
+        next_line = lines[i + 1]
+        stripped_next = self._strip(next_line)
+        if "Commands" in stripped_next:
+            return True
+        if not next_line.strip() and i + 2 < len(lines):
+            return "Commands" in self._strip(lines[i + 2])
+        return False
+
+    def _process_global_options_section(
+        self, line: str, stripped: str, processed_line: str, in_global_options: bool, global_options_lines: list[str], result: list[str]
+    ) -> tuple[bool, list[str]]:
+        if "Global options" in stripped:
+            in_global_options = True
+            self._handle_global_options_start(result, processed_line)
+        elif in_global_options and line.strip() and not line.startswith("  ") and not line.startswith("    "):
+            in_global_options = False
+            self._handle_global_options_end(result, global_options_lines, line, stripped)
+            global_options_lines = []
+        elif in_global_options:
+            global_options_lines.append(line)
+        return in_global_options, global_options_lines
+
+    def _process_description_section(self, line: str, lines: list[str], i: int, description_done: bool, result: list[str]) -> tuple[bool, bool]:
+        if description_done:
+            return description_done, False
+        if not line.strip() or "Commands" in self._strip(line):
+            return description_done, False
+        result.append(line)
+        if self._check_description_done(lines, i):
+            description_done = True
+            if result and result[-1].strip():
+                result.append("")
+        return description_done, True
+
+    def _process_commands_section(self, line: str, stripped: str, processed_line: str, usage_added: bool, result: list[str]) -> tuple[bool, bool]:
+        if "Commands" in stripped and not usage_added:
+            self._add_usage_line(result)
+            result.append(processed_line)
+            return True, True
+        return usage_added, False
+
     def _process_sections(self, lines: list[str]) -> list[str]:
         result = []
         in_global_options = False
@@ -139,47 +216,27 @@ class HelpTextProcessor:
 
         for i, line in enumerate(lines):
             stripped = self._strip(line)
+            processed_line = self._process_section_header(line, stripped)
 
-            # Handle color stripping for section headers
-            processed_line = line
-            if not preference_manager.supports_color():
-                if "Global options" in stripped:
-                    processed_line = "Global options:"
-                elif "Commands" in stripped and ":" in stripped:
-                    processed_line = "Commands:"
+            new_in_global, new_global_lines = self._process_global_options_section(
+                line, stripped, processed_line, in_global_options, global_options_lines, result
+            )
+            was_in_global = in_global_options
+            in_global_options = new_in_global
+            global_options_lines = new_global_lines
 
-            # Process Global options section
-            if "Global options" in stripped:
-                in_global_options = True
-                if result and result[-1].strip():
-                    result.append("")
-                result.append(processed_line)
-            elif in_global_options and line.strip() and not line.startswith("  ") and not line.startswith("    "):
-                in_global_options = False
-                sorted_lines = OptionSorter.sort(global_options_lines)
-                result.extend(sorted_lines)
-                global_options_lines = []
-                if "Use `" in stripped or "for more information" in stripped.lower():
-                    result.append("")
-                result.append(line)
-            elif in_global_options:
-                global_options_lines.append(line)
-            # Handle description and Usage line
-            elif not description_done and line.strip() and "Commands" not in self._strip(line):
-                result.append(line)
-                if i + 1 < len(lines):
-                    next_line = lines[i + 1]
-                    stripped_next = self._strip(next_line)
-                    if "Commands" in stripped_next or (not next_line.strip() and i + 2 < len(lines) and "Commands" in self._strip(lines[i + 2])):
-                        description_done = True
-                        if result and result[-1].strip():
-                            result.append("")
-            elif "Commands" in self._strip(line) and not usage_added:
-                self._add_usage_line(result)
-                usage_added = True
-                result.append(processed_line)
-            else:
-                result.append(line)
+            if was_in_global or in_global_options:
+                continue
+
+            description_done, handled = self._process_description_section(line, lines, i, description_done, result)
+            if handled:
+                continue
+
+            usage_added, handled = self._process_commands_section(line, stripped, processed_line, usage_added, result)
+            if handled:
+                continue
+
+            result.append(line)
 
         if global_options_lines:
             sorted_lines = OptionSorter.sort(global_options_lines)
@@ -195,37 +252,43 @@ class HelpTextProcessor:
         result.append(f"{usage_text} {prog_text} {options_text} {command_text}")
         result.append("")
 
+    def _is_epilog(self, stripped: str) -> bool:
+        return bool("Use `" in stripped and ("uvtask help" in stripped or "for more details" in stripped.lower() or "for more information" in stripped.lower()))
+
+    def _is_section_header(self, stripped: str) -> bool:
+        return stripped.startswith("Usage:") or stripped in {"Commands:", "Global options:"}
+
+    def _should_add_spacing_before(self, lines: list[str], i: int, new_lines: list[str]) -> bool:
+        if i == 0:
+            return False
+        prev_line = lines[i - 1]
+        return bool(prev_line.strip() and (not new_lines or new_lines[-1].strip()))
+
+    def _should_keep_empty_line(self, lines: list[str], i: int) -> bool:
+        if i + 1 >= len(lines):
+            return False
+        next_stripped = self._strip(lines[i + 1])
+        next_is_epilog = self._is_epilog(next_stripped)
+        next_is_section = self._is_section_header(next_stripped)
+        return next_is_epilog or next_is_section
+
     def _add_section_spacing(self, lines: list[str]) -> str:
         new_lines = []
         for i, line in enumerate(lines):
             stripped = self._strip(line)
-            is_usage = stripped.startswith("Usage:")
-            is_commands = stripped == "Commands:"
-            is_global_options = stripped == "Global options:"
-            is_epilog = "Use `" in stripped and (
-                "uvtask help" in stripped or "for more details" in stripped.lower() or "for more information" in stripped.lower()
-            )
+            is_section_header = self._is_section_header(stripped)
+            is_epilog = self._is_epilog(stripped)
 
-            is_section_header = is_usage or is_commands or is_global_options
-
-            if is_section_header and i > 0:
-                prev_line = lines[i - 1] if i > 0 else ""
-                if prev_line.strip() and (not new_lines or new_lines[-1].strip()):
-                    new_lines.append("")
+            if is_section_header and self._should_add_spacing_before(lines, i, new_lines):
+                new_lines.append("")
 
             if is_epilog:
-                if i > 0 and lines[i - 1].strip() and (not new_lines or new_lines[-1].strip()):
+                if self._should_add_spacing_before(lines, i, new_lines):
                     new_lines.append("")
                 new_lines.append(line)
             elif not line.strip():
-                if i + 1 < len(lines):
-                    next_stripped = self._strip(lines[i + 1])
-                    next_is_epilog = "Use `" in next_stripped and (
-                        "uvtask help" in next_stripped or "for more details" in next_stripped.lower() or "for more information" in next_stripped.lower()
-                    )
-                    next_is_section = next_stripped.startswith("Usage:") or next_stripped in {"Commands:", "Global options:"}
-                    if next_is_epilog or next_is_section:
-                        new_lines.append(line)
+                if self._should_keep_empty_line(lines, i):
+                    new_lines.append(line)
             else:
                 new_lines.append(line)
 
@@ -295,34 +358,55 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
                 return f"  {invocation}\n    {help_text}\n"
             return f"  {invocation}\n"
 
-    def _format_subparsers(self, action: argparse._SubParsersAction) -> str:
+    def _calculate_max_command_width(self, action: argparse._SubParsersAction) -> int:
         max_cmd_width = 24
         for choice in action.choices.keys():
             clean_choice = self._ansi_stripper.strip(choice)
             max_cmd_width = max(max_cmd_width, len(clean_choice))
-        width = max_cmd_width + 2
+        return max_cmd_width + 2
 
+    def _extract_choices_help(self, action: argparse._SubParsersAction) -> dict[str, str]:
         choices_help = {}
         if hasattr(action, '_choices_actions'):
             for choice_action in action._choices_actions:
                 if choice_action.help:
                     choices_help[choice_action.dest] = choice_action.help
+        return choices_help
+
+    def _format_command_line(self, choice: str, help_text: str, width: int) -> list[str]:
+        cmd_name = color_service.bold_teal(choice) if preference_manager.supports_color() else choice
+        clean_cmd = self._ansi_stripper.strip(cmd_name)
+
+        if len(clean_cmd) < width and help_text:
+            aligned_cmd = cmd_name + " " * (width - len(clean_cmd))
+            return [f"  {aligned_cmd}{help_text}"]
+        parts = [f"  {cmd_name}"]
+        if help_text:
+            parts.append(f"    {help_text}")
+        return parts
+
+    def _format_subparsers(self, action: argparse._SubParsersAction) -> str:
+        width = self._calculate_max_command_width(action)
+        choices_help = self._extract_choices_help(action)
 
         parts = []
         for choice, _ in action.choices.items():
             help_text = choices_help.get(choice, "")
-            cmd_name = color_service.bold_teal(choice) if preference_manager.supports_color() else choice
-            clean_cmd = self._ansi_stripper.strip(cmd_name)
-
-            if len(clean_cmd) < width and help_text:
-                aligned_cmd = cmd_name + " " * (width - len(clean_cmd))
-                parts.append(f"  {aligned_cmd}{help_text}")
-            else:
-                parts.append(f"  {cmd_name}")
-                if help_text:
-                    parts.append(f"    {help_text}")
+            parts.extend(self._format_command_line(choice, help_text, width))
 
         return "\n".join(parts) + "\n" if parts else ""
+
+    def _get_custom_help_text(self, option_strings: Sequence[str]) -> str | None:
+        help_map = {
+            ("--help", "-h"): "Display the concise help for this command",
+            ("--quiet", "-q"): "Use quiet output",
+            ("--verbose", "-v"): "Use verbose output",
+            ("--version", "-V"): "Display the uvtask version",
+        }
+        for options, text in help_map.items():
+            if any(opt in option_strings for opt in options):
+                return text
+        return None
 
     def _get_help_text(self, action: argparse.Action) -> str:
         help_text = self._expand_help(action) if action.help else ""
@@ -330,14 +414,9 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
         help_text = help_text.replace("%(prog)s", self._prog)
 
         if action.option_strings:
-            if "--help" in action.option_strings or "-h" in action.option_strings:
-                return "Display the concise help for this command"
-            elif "--quiet" in action.option_strings or "-q" in action.option_strings:
-                return "Use quiet output"
-            elif "--verbose" in action.option_strings or "-v" in action.option_strings:
-                return "Use verbose output"
-            elif "--version" in action.option_strings or "-V" in action.option_strings:
-                return "Display the uvtask version"
+            custom_help = self._get_custom_help_text(action.option_strings)
+            if custom_help:
+                return custom_help
 
         return help_text
 
