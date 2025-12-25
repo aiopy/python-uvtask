@@ -32,7 +32,7 @@ uvtask <OPTIONS> [COMMAND]
 
 ## 📝 Configuration
 
-Define your scripts in `pyproject.toml` under the `[tool.run-script]` section:
+Define your scripts in `pyproject.toml` under the `[tool.run-script]` (or `[tool.uvtask.run-script]`) section:
 
 ```toml
 [tool.run-script]
