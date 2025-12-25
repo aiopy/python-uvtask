@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import StrEnum
 from os import getenv
 from sys import argv, stderr

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import subprocess
 from subprocess import run
 from sys import stderr
