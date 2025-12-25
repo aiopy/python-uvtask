@@ -65,6 +65,16 @@ jobs:
         run: uvx uvtask static-analysis:types
         if: ${{ env.PIPELINE_TESTS == 'true' }}
 
+      - name: complexity-visibility
+        shell: bash
+        run: uvx uvtask complexity:visibility
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: complexity-enforcement
+        shell: bash
+        run: uvx uvtask complexity:enforcement
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
       - name: unit-tests
         shell: bash
         run: uvx uvtask unit-tests

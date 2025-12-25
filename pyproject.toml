@@ -49,22 +49,35 @@ requires-python = ">=3.13"
 
 [dependency-groups]
 dev = [
-    "bandit>=1.9.2", # security-analysis
-    "pip-licenses>=5.5.0", # security-analysis
-    "pytest>=8.0.0", # test
+    "bandit>=1.9.2", # security-analysis:vulnerabilities
+    "pip-licenses>=5.5.0", # security-analysis:licenses
+    "pytest>=9.0.2", # test
     "pytest-cov>=7.0.0", # test, coverage
     "pytest-xdist>=3.8.0", # test
-    "ruff>=0.14.10", # code-formatter, static-analysis
-    "ty>=0.0.6", # static-analysis
+    "radon>=6.0.1", # complexity:visibility
+    "ruff>=0.14.10", # code-formatter, static-analysis:linter
+    "ty>=0.0.7", # static-analysis:types
+    "xenon>=0.9.3", # complexity:enforcement
 ]
 
 [project.urls]
-"documentation" = "https://aiopy.github.io/python-uvtask/"
+"documentation" = "https://github.com/aiopy/python-uvtask/README.md"
 "repository" = "https://github.com/aiopy/python-uvtask"
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B404", "B602"]
+skips = []
+
+[tool.coverage.paths]
+source = ["uvtask"]
+[tool.coverage.run]
+data_file = ".venv/var/coverage/.coverage"
+disable_warnings = ["no-data-collected"]
+source = ["tests"]
+[tool.coverage.report]
+fail_under = 85
+[tool.coverage.html]
+directory = ".venv/var/coverage"
 
 [tool.pip-licenses]
 allow-only = "Apache;BSD;MIT;MPL"
@@ -73,12 +86,12 @@ ignore-packages = [
 partial-match = true
 
 [tool.pytest.ini_options]
-cache_dir = "var/pytest"
+cache_dir = ".venv/var/pytest"
 addopts = "-q -n 1 -p no:warnings --no-cov-on-fail"
 testpaths = ["tests"]
 
 [tool.ruff]
-cache-dir = "var/ruff"
+cache-dir = ".venv/var/ruff"
 line-length = 160
 target-version = "py313"
 respect-gitignore = true
@@ -94,8 +107,6 @@ lint.select = [
     "RUF",  # ruff-specific
 ]
 lint.ignore = [
-    "PLC0415",
-    "PLR0912",
     "PLR0913",
     "PLR2004", 
 ]
@@ -112,7 +123,7 @@ force-single-line = false
 known-first-party = ["uvtask"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 20
+max-complexity = 10
 
 [tool.ty.environment]
 python-version = "3.13"
@@ -120,7 +131,6 @@ python-version = "3.13"
 [tool.ty.src]
 exclude = [
     "tests/fixtures/**",
-    "var",
     ".venv",
 ]
 
@@ -130,26 +140,21 @@ upgrade-install = { command = "uv sync --frozen --no-dev --upgrade --refresh", d
 dev-install = { command = "uv sync --dev --all-extras", description = "Install all dependencies including dev and extras" }
 upgrade-dev-install = { command = "uv sync --dev --all-extras --upgrade --refresh", description = "Upgrade and refresh installation of all dependencies including dev and extras" }
 code-formatter = { command = "uv run ruff format uvtask tests", description = "Format code with ruff" }
-"security-analysis" = { command = ["security-analysis:licenses", "security-analysis:vulnerabilities"], description = "Run all security analysis checks" }
+security-analysis = { command = ["security-analysis:licenses", "security-analysis:vulnerabilities"], description = "Run all security analysis checks" }
 "security-analysis:licenses" = { command = "uv run pip-licenses", description = "Check third-party dependencies licenses using pip-licenses" }
 "security-analysis:vulnerabilities" = { command = "uv run bandit -r -c pyproject.toml uvtask tests", description = "Scan code for security vulnerabilities using bandit" }
-"static-analysis" = { command = ["static-analysis:linter", "static-analysis:types"], description = "Run all static analysis checks" }
+static-analysis = { command = ["static-analysis:linter", "static-analysis:types"], description = "Run all static analysis checks" }
 "static-analysis:linter" = { command = "uv run ruff check uvtask tests", description = "Run linter checks using ruff" }
 "static-analysis:types" = { command = "uv run ty check uvtask tests", description = "Run type checks using ty" }
+complexity = { command = ["complexity:visibility", "complexity:enforcement"], description = "Run complexity analysis and enforcement" }
+"complexity:visibility" = { command = ["uv run radon cc uvtask -a -nb", "uv run radon mi uvtask -nb"], description = "Show cyclomatic complexity and maintainability metrics using radon" }
+"complexity:enforcement" = { command = "uv run xenon --max-absolute C --max-modules B --max-average A uvtask", description = "Ensure code complexity stays within allowed limits using xenon" }
 test = { command = ["unit-tests", "integration-tests", "functional-tests"], description = "Run all tests with pytest" }
 unit-tests = { command = "uv run pytest tests/unit", description = "Run unit tests with pytest" }
 integration-tests = { command = "uv run pytest tests/integration", description = "Run integration tests with pytest" }
 functional-tests = { command = "uv run pytest -n1 tests/functional", description = "Run functional tests with pytest" }
 coverage = { command = "uv run pytest -n1 --cov --cov-report=html", description = "Run tests with coverage report in HTML using pytest" }
-clean = { command = """python3 -c "
-from glob import iglob
-from shutil import rmtree
-
-for pathname in ['./build', './*.egg-info', './dist', './var', '**/__pycache__']:
-  for path in iglob(pathname, recursive=True):
-    rmtree(path, ignore_errors=True)
-"
-""", description = "Clean build artifacts" }
+clean = { command = """python -c "import shutil, glob; [shutil.rmtree(p, ignore_errors=True) for pattern in ['build', 'dist', '*.egg-info', '**/__pycache__'] for p in glob.glob(pattern, recursive=True)]" """, description = "Remove build artifacts and cache directories" }
 
 [project.scripts]
 uvtask = "uvtask.cli:main"

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,8 +11,6 @@ class TestCliApplication:
     def test_run_missing_pyproject(self, temp_dir: Path) -> None:
         original_cwd = Path.cwd()
         try:
-            import os
-
             os.chdir(temp_dir)
             mock_script_loader = MagicMock()
             mock_version_loader = MagicMock()
@@ -42,8 +41,6 @@ class TestCliApplication:
     def test_run_validates_reserved_commands(self, pyproject_toml: Path) -> None:
         original_cwd = Path.cwd()
         try:
-            import os
-
             os.chdir(pyproject_toml.parent)
             mock_script_loader = MagicMock()
             mock_script_loader.load_scripts_with_descriptions.return_value = ({"help": "echo help"}, {})
@@ -75,8 +72,6 @@ class TestCliApplication:
     def test_run_executes_command(self, pyproject_toml: Path) -> None:
         original_cwd = Path.cwd()
         try:
-            import os
-
             os.chdir(pyproject_toml.parent)
             mock_script_loader = MagicMock()
             mock_script_loader.load_scripts_with_descriptions.return_value = (
@@ -117,8 +112,6 @@ class TestCliApplication:
     def test_run_handles_help_command(self, pyproject_toml: Path) -> None:
         original_cwd = Path.cwd()
         try:
-            import os
-
             os.chdir(pyproject_toml.parent)
             mock_script_loader = MagicMock()
             mock_script_loader.load_scripts_with_descriptions.return_value = ({"test": "echo test"}, {})

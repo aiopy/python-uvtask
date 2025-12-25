@@ -112,7 +112,7 @@ class HelpCommandHandler:
         else:
             self._show_general_help(parser)
 
-    def _show_command_help(self, command_name: str, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
+    def _validate_command_exists(self, command_name: str, scripts: dict[str, str | list[str]]) -> None:
         if command_name not in scripts:
             error_text = color_service.bold_red("error")
             print(f"{error_text}: unknown command '{color_service.yellow(command_name)}'", file=stderr)
@@ -126,38 +126,38 @@ class HelpCommandHandler:
 
             exit(1)
 
+    def _print_description_or_example(self, command_name: str, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
         description = script_descriptions.get(command_name, "")
-        command_cmd = color_service.bold_teal(command_name) if preference_manager.supports_color() else command_name
-
         if description:
             print(description)
-        else:
-            no_desc_text = color_service.yellow("No description provided") if preference_manager.supports_color() else "No description provided"
-            print(no_desc_text)
-            print()
-            print("To add a description, update your pyproject.toml:")
-            print()
+            return
 
-            actual_command = scripts.get(command_name, "...")
-            # Handle both str and list[str] cases
-            if isinstance(actual_command, list):
-                actual_command = actual_command[0] if actual_command else "..."
-            escaped_command = actual_command.replace('"', '\\"').replace('\n', '\\n')
-            if len(actual_command) > 50 or '\n' in actual_command:
-                example_cmd = (
-                    color_service.bold_teal(f'  {command_name} = {{ command = "...", description = "Your description here" }}')
-                    if preference_manager.supports_color()
-                    else f'  {command_name} = {{ command = "...", description = "Your description here" }}'
-                )
-            else:
-                example_cmd = (
-                    color_service.bold_teal(f'  {command_name} = {{ command = "{escaped_command}", description = "Your description here" }}')
-                    if preference_manager.supports_color()
-                    else f'  {command_name} = {{ command = "{escaped_command}", description = "Your description here" }}'
-                )
-                print(example_cmd)
-
+        no_desc_text = color_service.yellow("No description provided") if preference_manager.supports_color() else "No description provided"
+        print(no_desc_text)
         print()
+        print("To add a description, update your pyproject.toml:")
+        print()
+
+        actual_command = scripts.get(command_name, "...")
+        if isinstance(actual_command, list):
+            actual_command = actual_command[0] if actual_command else "..."
+        escaped_command = actual_command.replace('"', '\\"').replace('\n', '\\n')
+        if len(actual_command) > 50 or '\n' in actual_command:
+            example_cmd = (
+                color_service.bold_teal(f'  {command_name} = {{ command = "...", description = "Your description here" }}')
+                if preference_manager.supports_color()
+                else f'  {command_name} = {{ command = "...", description = "Your description here" }}'
+            )
+        else:
+            example_cmd = (
+                color_service.bold_teal(f'  {command_name} = {{ command = "{escaped_command}", description = "Your description here" }}')
+                if preference_manager.supports_color()
+                else f'  {command_name} = {{ command = "{escaped_command}", description = "Your description here" }}'
+            )
+        print(example_cmd)
+
+    def _print_usage_info(self, command_name: str) -> None:
+        command_cmd = color_service.bold_teal(command_name) if preference_manager.supports_color() else command_name
         usage_text = color_service.bold_green("Usage:") if preference_manager.supports_color() else "Usage:"
         prog_text = color_service.bold_teal("uvtask") if preference_manager.supports_color() else "uvtask"
         options_text = color_service.teal("[OPTIONS]") if preference_manager.supports_color() else "[OPTIONS]"
@@ -167,6 +167,11 @@ class HelpCommandHandler:
         help_cmd_text = color_service.bold("uvtask help <command>") if preference_manager.supports_color() else "uvtask help <command>"
         print(f"Use `{help_cmd_text}` for more information on a specific command.")
         print()
+
+    def _show_command_help(self, command_name: str, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
+        self._validate_command_exists(command_name, scripts)
+        self._print_description_or_example(command_name, scripts, script_descriptions)
+        self._print_usage_info(command_name)
         exit(0)
 
     def _show_general_help(self, parser: "CustomArgumentParser") -> None:
@@ -188,6 +193,36 @@ class CommandExecutorOrchestrator:
         self._executor = executor
         self._verbose = verbose_output or VerboseOutputHandler()
 
+    def _execute_pre_hooks(self, pre_hooks: list[str], quiet_count: int, verbose_count: int) -> None:
+        for hook_command in pre_hooks:
+            exit_code = self._executor.execute(hook_command, quiet_count, verbose_count)
+            if exit_code != 0:
+                self._verbose.show_hook_failure("Pre-hook", exit_code, verbose_count)
+                exit(exit_code)
+
+    def _execute_main_commands(self, main_commands: list[str], quiet_count: int, verbose_count: int) -> int:
+        main_exit_code = 0
+        for i, main_command in enumerate(main_commands):
+            if verbose_count > 0 and len(main_commands) > 1:
+                print(
+                    color_service.bold_green(f"Executing command {i + 1}/{len(main_commands)}"),
+                    file=stderr,
+                )
+            exit_code = self._executor.execute(main_command, quiet_count, verbose_count)
+            if exit_code != 0:
+                main_exit_code = exit_code
+                self._verbose.show_command_failure(exit_code, verbose_count)
+                break
+        return main_exit_code
+
+    def _execute_post_hooks(self, post_hooks: list[str], main_exit_code: int, quiet_count: int, verbose_count: int) -> int:
+        for hook_command in post_hooks:
+            hook_exit_code = self._executor.execute(hook_command, quiet_count, verbose_count)
+            if main_exit_code == 0 and hook_exit_code != 0:
+                main_exit_code = hook_exit_code
+                self._verbose.show_hook_failure("Post-hook", hook_exit_code, verbose_count)
+        return main_exit_code
+
     def execute(
         self,
         command_name: str,
@@ -199,32 +234,9 @@ class CommandExecutorOrchestrator:
     ) -> None:
         try:
             self._verbose.show_execution_info(command_name, main_commands, pre_hooks, post_hooks, verbose_count)
-
-            for hook_command in pre_hooks:
-                exit_code = self._executor.execute(hook_command, quiet_count, verbose_count)
-                if exit_code != 0:
-                    self._verbose.show_hook_failure("Pre-hook", exit_code, verbose_count)
-                    exit(exit_code)
-
-            main_exit_code = 0
-            for i, main_command in enumerate(main_commands):
-                if verbose_count > 0 and len(main_commands) > 1:
-                    print(
-                        color_service.bold_green(f"Executing command {i + 1}/{len(main_commands)}"),
-                        file=stderr,
-                    )
-                exit_code = self._executor.execute(main_command, quiet_count, verbose_count)
-                if exit_code != 0:
-                    main_exit_code = exit_code
-                    self._verbose.show_command_failure(exit_code, verbose_count)
-                    break
-
-            for hook_command in post_hooks:
-                hook_exit_code = self._executor.execute(hook_command, quiet_count, verbose_count)
-                if main_exit_code == 0 and hook_exit_code != 0:
-                    main_exit_code = hook_exit_code
-                    self._verbose.show_hook_failure("Post-hook", hook_exit_code, verbose_count)
-
+            self._execute_pre_hooks(pre_hooks, quiet_count, verbose_count)
+            main_exit_code = self._execute_main_commands(main_commands, quiet_count, verbose_count)
+            main_exit_code = self._execute_post_hooks(post_hooks, main_exit_code, quiet_count, verbose_count)
             self._verbose.show_final_exit_code(main_exit_code, verbose_count)
             exit(main_exit_code)
         except KeyboardInterrupt:
