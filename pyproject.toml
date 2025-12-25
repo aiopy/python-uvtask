@@ -125,20 +125,23 @@ exclude = [
 ]
 
 [tool.run-script]
-install = "uv sync --frozen --no-dev"
-upgrade-install = "uv sync --frozen --no-dev --upgrade --refresh"
-dev-install = "uv sync --dev --all-extras"
-upgrade-dev-install = "uv sync --dev --all-extras --upgrade --refresh"
-code-formatter = "uv run ruff format uvtask tests"
-"security-analysis:licenses" = "uv run pip-licenses"
-"security-analysis:vulnerabilities" = "uv run bandit -r -c pyproject.toml uvtask tests"
-"static-analysis:linter" = "uv run ruff check uvtask tests"
-"static-analysis:types" = "uv run ty check uvtask tests"
-unit-tests = "uv run pytest tests/unit"
-integration-tests = "uv run pytest tests/integration"
-functional-tests = "uv run pytest -n1 tests/functional"
-coverage = "uv run pytest -n1 --cov --cov-report=html"
-clean = """python3 -c "
+install = { command = "uv sync --frozen --no-dev", description = "Install dependencies as specified in lockfile, excluding dev dependencies" }
+upgrade-install = { command = "uv sync --frozen --no-dev --upgrade --refresh", description = "Upgrade and refresh installation of non-dev dependencies" }
+dev-install = { command = "uv sync --dev --all-extras", description = "Install all dependencies including dev and extras" }
+upgrade-dev-install = { command = "uv sync --dev --all-extras --upgrade --refresh", description = "Upgrade and refresh installation of all dependencies including dev and extras" }
+code-formatter = { command = "ruff format uvtask tests", description = "Format code with ruff" }
+"security-analysis" = { command = ["security-analysis:licenses", "security-analysis:vulnerabilities"], description = "Run all security analysis checks" }
+"security-analysis:licenses" = { command = "pip-licenses", description = "Check third-party dependencies licenses using pip-licenses" }
+"security-analysis:vulnerabilities" = { command = "bandit -r -c pyproject.toml uvtask tests", description = "Scan code for security vulnerabilities using bandit" }
+"static-analysis" = { command = ["static-analysis:linter", "static-analysis:types"], description = "Run all static analysis checks" }
+"static-analysis:linter" = { command = "ruff check uvtask tests", description = "Run linter checks using ruff" }
+"static-analysis:types" = { command = "ty check uvtask tests", description = "Run type checks using ty" }
+test = { command = ["unit-tests", "integration-tests", "functional-tests"], description = "Run all tests with pytest" }
+unit-tests = { command = "pytest tests/unit", description = "Run unit tests with pytest" }
+integration-tests = { command = "pytest tests/integration", description = "Run integration tests with pytest" }
+functional-tests = { command = "pytest -n1 tests/functional", description = "Run functional tests with pytest" }
+coverage = { command = "pytest -n1 --cov --cov-report=html", description = "Run tests with coverage report in HTML using pytest" }
+clean = { command = """python3 -c "
 from glob import iglob
 from shutil import rmtree
 
@@ -146,7 +149,7 @@ for pathname in ['./build', './*.egg-info', './dist', './var', '**/__pycache__']
   for path in iglob(pathname, recursive=True):
     rmtree(path, ignore_errors=True)
 "
-"""
+""", description = "Clean build artifacts" }
 
 [project.scripts]
 uvtask = "uvtask.cli:main"
