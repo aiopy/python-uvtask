@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sys import argv, exit, stderr
 
 from uvtask.colors import color_service

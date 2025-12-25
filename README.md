@@ -37,11 +37,11 @@ Define your scripts in `pyproject.toml` under the `[tool.run-script]` section:
 ```toml
 [tool.run-script]
 install = "uv sync --dev --all-extras"
-format = "ruff format ."
-lint = { command = "ruff check .", description = "Check code quality" }
-check = ["ty check .", "mypy ."]
+format = "uv run ruff format ."
+lint = { command = "uv run ruff check .", description = "Check code quality" }
+check = ["uv run ty check .", "uv run mypy ."]
 pre-test = "echo 'Running tests...'"
-test = "pytest"
+test = "uv run pytest"
 post-test = "echo 'Tests completed!'"
 deploy = [
     "echo 'Building...'",

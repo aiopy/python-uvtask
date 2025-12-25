@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sys import argv
 
 from uvtask.colors import preference_manager
