@@ -92,7 +92,7 @@ class ArgumentParserBuilder:
             "-V",
             "--version",
             action="version",
-            version=f"%(prog)s {self._version_loader.get_version()}",
+            version=f"%(prog)s {self._version_loader.get_package_version()}",
         )
 
         return parser

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from tomllib import loads
 
@@ -101,6 +102,12 @@ class VersionLoader:
             return "unknown"
         data = self._reader.read()
         return data.get("project", {}).get("version", "unknown")
+
+    def get_package_version(self) -> str:
+        try:
+            return version("uvtask")
+        except PackageNotFoundError:
+            return "unknown"
 
 
 pyproject_reader = PyProjectReader(Path("pyproject.toml"))
