@@ -8,6 +8,7 @@
 *.egg-info/
 *.pyc
 __pycache__/
+.coverage
 build/
 dist/
 requirements-dev.txt

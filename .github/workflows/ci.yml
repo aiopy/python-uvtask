@@ -1,0 +1,80 @@
+name: CI
+
+run-name: CI - ${{ github.event_name == 'pull_request' && github.event.pull_request.title || github.event_name == 'push' && github.event.head_commit.message || github.ref_name }} ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && format('(v{0})', github.event.inputs.version) || '' }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        default: "None"
+        required: false
+
+env:
+  CI: "true"
+
+jobs:
+  # Continuous Integration (CI) pipeline
+  ci:
+    if: ${{ vars.CONTINUOUS_INTEGRATION == 'true' }}
+    permissions:
+      contents: read
+    env:
+      PIPELINE_TESTS: ${{ github.event_name != 'workflow_dispatch' && github.event.inputs.version == '' && startsWith(github.ref, 'refs/tags/') == false && github.ref != 'refs/heads/main' && 'true' || 'false' }}
+      RELEASE_MODE: "false"
+      VERSION: ${{ github.run_id }}
+    timeout-minutes: 15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        platforms: [linux/amd64, linux/arm64]
+    steps:
+      - name: Checkout Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        shell: bash
+        run: uvx uvtask dev-install
+
+      - name: security-analysis-licenses
+        shell: bash
+        run: uvx uvtask security-analysis:licenses
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: security-analysis-vulnerabilities
+        shell: bash
+        run: uvx uvtask security-analysis:vulnerabilities
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: static-analysis-linter
+        shell: bash
+        run: uvx uvtask static-analysis:linter
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: static-analysis-types
+        shell: bash
+        run: uvx uvtask static-analysis:types
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: unit-tests
+        shell: bash
+        run: uvx uvtask unit-tests
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+      
+      - name: integration-tests
+        shell: bash
+        run: uvx uvtask integration-tests
+        if: ${{ env.PIPELINE_TESTS == 'true' }}
+
+      - name: Clean
+        shell: bash
+        run: uvx uvtask clean

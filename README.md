@@ -1,25 +1,54 @@
-# 🚀 uvtask
+# uvtask
 
-[![PyPI version](https://badge.fury.io/py/uvtask.svg)](https://badge.fury.io/py/uvtask)
+[![image](https://img.shields.io/pypi/v/uvtask.svg)](https://pypi.python.org/pypi/uvtask)
+[![image](https://img.shields.io/pypi/l/uvtask.svg)](https://pypi.python.org/pypi/uvtask)
+[![image](https://img.shields.io/pypi/pyversions/uvtask.svg)](https://pypi.python.org/pypi/uvtask)
+[![Actions status](https://github.com/aiopy/python-uvtask/actions/workflows/ci.yml/badge.svg)](https://github.com/aiopy/python-uvtask/actions)
 [![PyPIDownloads](https://static.pepy.tech/badge/uvtask)](https://pepy.tech/project/uvtask)
 
-**uvtask** is a modern, fast, and flexible Python task runner and test automation tool designed to simplify development workflows. It supports running, organizing, and managing tasks or tests in Python projects with an emphasis on ease of use and speed. ⚡
+An extremely fast Python task runner.
+
+## Highlights
+
+- ⚡ **Extremely fast** - Built for speed with zero installation overhead
+- 📝 **Simple configuration** - Define scripts in `pyproject.toml`
+- 🔗 **Pre/post hooks** - Automatically run hooks before and after commands
+- 🎨 **Beautiful output** - Colorful, `uv`-inspired CLI
 
 ## 🎯 Quick Start
 
-Run tasks defined in your `pyproject.toml`:
+Run `uvtask` directly with `uvx` (no installation required):
 
 ```shell
-uvx uvtask <task_name>
+uvx uvtask <OPTIONS> [COMMAND]
+```
+
+Or install it and use it directly:
+
+```shell
+uv add --dev uvtask
+uvtask <OPTIONS> [COMMAND]
 ```
 
 ## 📝 Configuration
 
-Define your tasks in `pyproject.toml` under the `[tool.run-script]` section:
+Define your scripts in `pyproject.toml` under the `[tool.run-script]` section:
 
 ```toml
 [tool.run-script]
-hello-world = "echo 'hello world'"
+install = "uv sync --dev --all-extras"
+format = "ruff format ."
+lint = { command = "ruff check .", description = "Check code quality" }
+check = ["ty check .", "mypy ."]
+pre-test = "echo 'Running tests...'"
+test = "pytest"
+post-test = "echo 'Tests completed!'"
+deploy = [
+    "echo 'Building...'",
+    "uv build",
+    "echo 'Deploying...'",
+    "uv deploy"
+]
 ```
 
 ## 🛠️ Development
@@ -27,20 +56,12 @@ hello-world = "echo 'hello world'"
 To run the development version:
 
 ```shell
-uvx --no-cache --from $PWD run --help
+uvx -q --no-cache --from $PWD uvtask
 ```
-
-## 📋 Requirements
-
-- 🐍 Python >= 3.13
 
 ## 🤝 Contributing
 
-Contributions are welcome! 🎉
-
-- For major changes, please open an issue first to discuss what you would like to change
-- Make sure to update tests as appropriate
-- Follow the existing code style and conventions
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 

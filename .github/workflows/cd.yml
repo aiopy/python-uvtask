@@ -1,0 +1,84 @@
+name: CD
+
+run-name: CD - ${{ github.event_name == 'workflow_run' && format('{0} (from CI)', github.event.workflow_run.head_commit.message) || format('{0}{1}', github.event.inputs.environment != '' && github.event.inputs.environment || 'dev', github.event.inputs.version != '' && format(' (v{0})', github.event.inputs.version) || '') }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        default: "None"
+        required: false
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types:
+      - completed
+
+env:
+  CD: ${{ vars.CONTINUOUS_DEPLOYMENT }}
+  DEPLOY_MODE: "true"
+  VERSION: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'None' }}
+
+jobs:
+  # Continuous Deployment (CD) pipeline
+  cd:
+    if: ${{ vars.CONTINUOUS_DEPLOYMENT == 'true' && github.ref_name == 'main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')) }}
+    permissions:
+      contents: write
+      id-token: write
+    timeout-minutes: 15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        platforms: [linux/amd64]
+    steps:
+      - name: Checkout Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        shell: bash
+        run: uvx uvtask dev-install
+
+      - name: Set version
+        shell: bash
+        run: |
+          if [ -z "${VERSION}" ] || [ "${VERSION}" = "None" ]; then
+            uv version --bump minor
+            VERSION=$(uv version --short)
+            echo "VERSION=${VERSION}" >> "${GITHUB_ENV:-/dev/null}"
+          else
+            uv version ${VERSION}
+          fi
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+          git push origin "${VERSION}"
+        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+      
+      - name: Build package
+        shell: bash
+        run: uv build
+        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+
+      - name: Upload package to artifact registry
+        uses: actions/upload-artifact@v6
+        with:
+          name: uvtask
+          path: dist/
+        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+
+      - name: Publish package
+        shell: bash
+        run: uv publish
+        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+
+      - name: Clean
+        shell: bash
+        run: uvx uvtask clean

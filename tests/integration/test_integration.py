@@ -1,239 +1,167 @@
-"""Integration tests for uvtask."""
-
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-# Get the path to the project root and CLI module
-PROJECT_ROOT = Path(__file__).parent.parent
-CLI_MODULE = "uvtask.cli"
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 
 
-class TestIntegration:
-    """Integration tests for end-to-end scenarios."""
+def run_uvtask(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(PROJECT_ROOT.absolute())
+    env["PYTHONUNBUFFERED"] = "1"
 
-    def test_full_workflow_with_real_command(self, pyproject_toml: Path) -> None:
-        """Test full workflow executing a real command."""
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(pyproject_toml.parent)
-            # Run uvtask with a simple echo command
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            result = subprocess.run(
-                [sys.executable, "-m", CLI_MODULE, "test"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=pyproject_toml.parent,
-                env=env,
-            )
-            assert result.returncode == 0
-            assert "test" in result.stdout or result.stdout == ""
-        finally:
-            os.chdir(original_cwd)
+    result = subprocess.run(
+        [sys.executable, "-m", "uvtask", *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        env=env,
+    )
+    return result
 
-    def test_help_integration(self, pyproject_toml: Path) -> None:
-        """Test help command in integration scenario."""
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(pyproject_toml.parent)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            env["PYTHONUNBUFFERED"] = "1"
-            result = subprocess.run(
-                [sys.executable, "-u", "-m", CLI_MODULE, "--help"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=pyproject_toml.parent,
-                env=env,
-            )
-            assert result.returncode == 0
-            # Output might be in stdout or stderr depending on how exit() is handled
-            output = (result.stdout or "") + (result.stderr or "")
-            # If output is empty, the command at least succeeded (exit code 0)
-            if output:
-                assert "Usage: uvtask [COMMAND]" in output or "test" in output
-        finally:
-            os.chdir(original_cwd)
 
-    def test_error_handling_integration(self, temp_dir: Path) -> None:
-        """Test error handling when pyproject.toml is missing."""
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(temp_dir)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            env["PYTHONUNBUFFERED"] = "1"
-            # Use python -c to properly propagate exit codes
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-u",
-                    "-c",
-                    f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from uvtask.cli import main; sys.argv = ['uvtask', 'test']; main()",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=temp_dir,
-                env=env,
-            )
-            # When run via -m, SystemExit might not propagate, so check output instead
-            output = (result.stdout or "") + (result.stderr or "")
-            if result.returncode == 1:
-                # Exit code properly propagated
-                if output:
-                    assert "Error: pyproject.toml not found" in output
-            else:
-                # Exit code not propagated (Python -m issue), check output
-                assert "Error: pyproject.toml not found" in output
-        finally:
-            os.chdir(original_cwd)
-
-    def test_unknown_command_integration(self, pyproject_toml: Path) -> None:
-        """Test unknown command error in integration scenario."""
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(pyproject_toml.parent)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            env["PYTHONUNBUFFERED"] = "1"
-            # Use python -c to properly propagate exit codes
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-u",
-                    "-c",
-                    f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from uvtask.cli import main; sys.argv = ['uvtask', 'nonexistent']; main()",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=pyproject_toml.parent,
-                env=env,
-            )
-            # When run via -c, SystemExit should propagate, but check output as well
-            output = (result.stdout or "") + (result.stderr or "")
-            # The command should fail with exit code 1
-            # If exit code is 0, it might have shown help instead (which is also a valid behavior)
-            if result.returncode == 1:
-                # Exit code properly propagated - error occurred
-                assert "Error: Unknown command 'nonexistent'!" in output
-            elif result.returncode == 0:
-                # If exit code is 0, it might have shown help (fallback behavior)
-                # In this case, we just verify the command was processed
-                assert len(output) > 0  # Some output was produced
-        finally:
-            os.chdir(original_cwd)
-
-    def test_command_with_arguments_integration(self, temp_dir: Path) -> None:
-        """Test command execution with arguments in integration scenario."""
-        original_cwd = Path.cwd()
+class TestBasicExecution:
+    def test_execute_simple_command(self, temp_dir: Path) -> None:
         pyproject_path = temp_dir / "pyproject.toml"
-        pyproject_content = """[tool.run-script]
-greet = "echo hello"
-"""
-        pyproject_path.write_text(pyproject_content)
-        try:
-            os.chdir(temp_dir)
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            result = subprocess.run(
-                [sys.executable, "-m", CLI_MODULE, "greet", "world"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=temp_dir,
-                env=env,
-            )
-            # Command should execute successfully
-            assert result.returncode == 0
-        finally:
-            os.chdir(original_cwd)
+        pyproject_path.write_text('[tool.run-script]\ntest = "echo hello"\n')
 
-    def test_multiple_commands_integration(self, pyproject_toml: Path) -> None:
-        """Test that multiple commands can be listed and executed."""
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(pyproject_toml.parent)
-            # First, check help shows all commands
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            env["PYTHONUNBUFFERED"] = "1"
-            help_result = subprocess.run(
-                [sys.executable, "-u", "-m", CLI_MODULE, "--help"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=pyproject_toml.parent,
-                env=env,
-            )
-            assert help_result.returncode == 0
-            help_output = (help_result.stdout or "") + (help_result.stderr or "")
-            # If output is empty, at least verify the command succeeded
-            if help_output:
-                # Verify all expected commands are present
-                assert "test" in help_output or "build" in help_output or "lint" in help_output
+        result = run_uvtask(["test"], temp_dir)
+        assert result.returncode == 0
+        assert "hello" in result.stdout
 
-            # Test executing one of them
-            test_result = subprocess.run(
-                [sys.executable, "-m", CLI_MODULE, "test"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=pyproject_toml.parent,
-                env=env,
-            )
-            assert test_result.returncode == 0
-        finally:
-            os.chdir(original_cwd)
-
-    def test_complex_pyproject_toml(self, temp_dir: Path) -> None:
-        """Test with a more complex pyproject.toml structure."""
-        original_cwd = Path.cwd()
+    def test_execute_command_with_args(self, temp_dir: Path) -> None:
         pyproject_path = temp_dir / "pyproject.toml"
-        pyproject_content = """[project]
-name = "test-project"
-version = "1.0.0"
+        pyproject_path.write_text('[tool.run-script]\ngreet = "echo"\n')
 
-[tool.run-script]
-simple = "echo simple"
-complex = "echo 'complex command'"
-with-args = "echo $@"
-"""
+        result = run_uvtask(["greet", "hello", "world"], temp_dir)
+        assert result.returncode == 0
+        assert "hello" in result.stdout
+        assert "world" in result.stdout
+
+    def test_execute_multiple_commands(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.write_text('[tool.run-script]\nmulti = ["echo first", "echo second"]\n')
+
+        result = run_uvtask(["multi"], temp_dir)
+        assert result.returncode == 0
+        assert "first" in result.stdout
+        assert "second" in result.stdout
+
+
+class TestHooks:
+    def test_pre_and_post_hooks(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.write_text('[tool.run-script]\npre-test = "echo pre"\ntest = "echo main"\npost-test = "echo post"\n')
+
+        result = run_uvtask(["test"], temp_dir)
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "pre" in output
+        assert "main" in output
+        assert "post" in output
+
+    def test_no_hooks_flag(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.write_text('[tool.run-script]\npre-test = "echo pre"\ntest = "echo main"\npost-test = "echo post"\n')
+
+        result = run_uvtask(["--no-hooks", "test"], temp_dir)
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "main" in output
+        assert "pre" not in output
+        assert "post" not in output
+
+
+class TestHelp:
+    def test_help_command(self, pyproject_toml: Path) -> None:
+        result = run_uvtask(["help"], pyproject_toml.parent)
+        assert result.returncode == 0
+        assert "Usage:" in result.stdout or "Usage:" in result.stderr
+
+    def test_help_specific_command(self, pyproject_toml: Path) -> None:
+        result = run_uvtask(["help", "test"], pyproject_toml.parent)
+        assert result.returncode == 0
+
+    def test_help_unknown_command(self, pyproject_toml: Path) -> None:
+        result = run_uvtask(["help", "nonexistent"], pyproject_toml.parent)
+        assert result.returncode == 1
+        assert "error" in result.stderr.lower() or "unknown" in result.stderr.lower()
+
+
+class TestMultilineCommands:
+    def test_multiline_command_with_description(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_content = '''[tool.run-script]
+clean = { command = """python3 -c "
+import os
+print('Cleaning...')
+print('Done!')
+"
+""", description = "Clean build artifacts" }
+'''
         pyproject_path.write_text(pyproject_content)
-        try:
-            os.chdir(temp_dir)
-            # Test help shows all commands
-            env = os.environ.copy()
-            env["PYTHONPATH"] = str(PROJECT_ROOT)
-            env["PYTHONUNBUFFERED"] = "1"
-            help_result = subprocess.run(
-                [sys.executable, "-u", "-m", CLI_MODULE, "--help"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=temp_dir,
-                env=env,
-            )
-            assert help_result.returncode == 0
-            help_output = (help_result.stdout or "") + (help_result.stderr or "")
-            # If output is empty, at least verify the command succeeded
-            if help_output:
-                assert "simple" in help_output or "complex" in help_output or "with-args" in help_output
 
-            # Test executing a command
-            result = subprocess.run(
-                [sys.executable, "-m", CLI_MODULE, "simple"],
-                check=False,
-                capture_output=True,
-                text=True,
-                cwd=temp_dir,
-                env=env,
-            )
-            assert result.returncode == 0
-        finally:
-            os.chdir(original_cwd)
+        result = run_uvtask(["clean"], temp_dir)
+        assert result.returncode == 0
+        assert "Cleaning..." in result.stdout
+        assert "Done!" in result.stdout
+
+    def test_multiline_command_help(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_content = '''[tool.run-script]
+clean = { command = """python3 -c "
+import os
+print('Clean')
+"
+""", description = "Clean build artifacts" }
+'''
+        pyproject_path.write_text(pyproject_content)
+
+        result = run_uvtask(["help", "clean"], temp_dir)
+        assert result.returncode == 0
+        assert "Clean build artifacts" in result.stdout
+
+
+class TestCommandChaining:
+    def test_command_references_other_commands(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_content = '''[tool.run-script]
+lint = "echo lint"
+test = "echo test"
+check = { command = ["lint", "test"], description = "Run lint and test" }
+'''
+        pyproject_path.write_text(pyproject_content)
+
+        result = run_uvtask(["check"], temp_dir)
+        assert result.returncode == 0
+        assert "lint" in result.stdout
+        assert "test" in result.stdout
+
+    def test_nested_command_references(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_content = '''[tool.run-script]
+lint = "echo lint"
+format = "echo format"
+static = { command = ["lint", "format"], description = "Static analysis" }
+all = { command = ["static"], description = "Run all checks" }
+'''
+        pyproject_path.write_text(pyproject_content)
+
+        result = run_uvtask(["all"], temp_dir)
+        assert result.returncode == 0
+        assert "lint" in result.stdout
+        assert "format" in result.stdout
+
+
+class TestErrorHandling:
+    def test_unknown_command(self, pyproject_toml: Path) -> None:
+        result = run_uvtask(["unknown"], pyproject_toml.parent)
+        assert result.returncode == 1
+        assert "error" in result.stderr.lower()
+
+    def test_missing_pyproject(self, temp_dir: Path) -> None:
+        result = run_uvtask(["test"], temp_dir)
+        assert result.returncode == 1
+        assert "pyproject.toml" in result.stderr.lower()
