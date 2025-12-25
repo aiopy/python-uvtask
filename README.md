@@ -8,12 +8,14 @@
 
 An extremely fast Python task runner.
 
+> **Note:** This is an **independent, third-party project**, not an official Astral tool. It is highly inspired by and designed to work seamlessly with Astral's excellent tools (such as `uv`/`uvx`, `ruff`, and `ty`). We're grateful for the amazing work the Astral team does for the Python ecosystem!
+
 ## Highlights
 
 - ⚡ **Extremely fast** - Built for speed with zero installation overhead
 - 📝 **Simple configuration** - Define scripts in `pyproject.toml`
 - 🔗 **Pre/post hooks** - Automatically run hooks before and after commands
-- 🎨 **Beautiful output** - Colorful, `uv`-inspired CLI
+- 🎨 **Consistent UX** - Maintains visual and stylistic continuity with `uv`'s design language
 
 ## 🎯 Quick Start
 
@@ -27,7 +29,7 @@ Or install it and use it directly:
 
 ```shell
 uv add --dev uvtask
-uvtask <OPTIONS> [COMMAND]
+uv run uvtask <OPTIONS> [COMMAND]
 ```
 
 ## 📝 Configuration
