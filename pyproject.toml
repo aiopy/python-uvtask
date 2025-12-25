@@ -1,6 +1,10 @@
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools"]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "uvtask"
+module-root = ""
 
 [project]
 authors = [
@@ -27,8 +31,8 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = []
-description = "uvtask is a modern, fast, and flexible Python task runner and test automation tool designed to simplify development workflows. It supports running, organizing, and managing tasks or tests in Python projects with an emphasis on ease of use and speed."
-dynamic = ["version"]
+description = "An extremely fast Python task runner."
+version = "0.0.0"
 keywords = [
     "uv", 
     "uvx",
@@ -51,24 +55,12 @@ dev = [
     "pytest-cov>=7.0.0", # test, coverage
     "pytest-xdist>=3.8.0", # test
     "ruff>=0.14.10", # code-formatter, static-analysis
-    "ty>=0.0.4", # static-analysis
+    "ty>=0.0.6", # static-analysis
 ]
 
 [project.urls]
 "documentation" = "https://aiopy.github.io/python-uvtask/"
 "repository" = "https://github.com/aiopy/python-uvtask"
-
-[tool.setuptools.dynamic]
-version = { attr = "uvtask.__version__" }
-
-[tool.setuptools.packages.find]
-include = ["uvtask*"]
-
-[tool.setuptools.package-data]
-"uvtask" = ["py.typed"]
-
-[[tool.uv.index]]
-url = "https://pypi.org/simple"
 
 [tool.bandit]
 exclude_dirs = ["tests"]
@@ -103,6 +95,8 @@ lint.select = [
 ]
 lint.ignore = [
     "PLC0415",
+    "PLR0912",
+    "PLR0913",
     "PLR2004", 
 ]
 
@@ -118,7 +112,7 @@ force-single-line = false
 known-first-party = ["uvtask"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 15
+max-complexity = 20
 
 [tool.ty.environment]
 python-version = "3.13"
@@ -127,6 +121,7 @@ python-version = "3.13"
 exclude = [
     "tests/fixtures/**",
     "var",
+    ".venv",
 ]
 
 [tool.run-script]
@@ -134,28 +129,26 @@ install = "uv sync --frozen --no-dev"
 upgrade-install = "uv sync --frozen --no-dev --upgrade --refresh"
 dev-install = "uv sync --dev --all-extras"
 upgrade-dev-install = "uv sync --dev --all-extras --upgrade --refresh"
-deploy = "uv build && uv publish"
-docs = "python3 -m mkdocs build -f docs_src/config/en/mkdocs.yml && python3 -m mkdocs build -f docs_src/config/es/mkdocs.yml"
-dev-docs = "python3 -m mkdocs serve -f docs_src/config/en/mkdocs.yml"
-code-formatter = "uv run ruff format uvtask tests $@"
+code-formatter = "uv run ruff format uvtask tests"
 "security-analysis:licenses" = "uv run pip-licenses"
 "security-analysis:vulnerabilities" = "uv run bandit -r -c pyproject.toml uvtask tests"
 "static-analysis:linter" = "uv run ruff check uvtask tests"
 "static-analysis:types" = "uv run ty check uvtask tests"
-test = "uv run pytest"
 unit-tests = "uv run pytest tests/unit"
 integration-tests = "uv run pytest tests/integration"
 functional-tests = "uv run pytest -n1 tests/functional"
 coverage = "uv run pytest -n1 --cov --cov-report=html"
-clean = """python3 -c \"
+clean = """python3 -c "
 from glob import iglob
 from shutil import rmtree
 
 for pathname in ['./build', './*.egg-info', './dist', './var', '**/__pycache__']:
   for path in iglob(pathname, recursive=True):
     rmtree(path, ignore_errors=True)
-\""""
+"
+"""
 
 [project.scripts]
 uvtask = "uvtask.cli:main"
+run = "uvtask.cli:main"
 run-script = "uvtask.cli:main"
