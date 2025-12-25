@@ -60,24 +60,24 @@ jobs:
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "${VERSION}"
-        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+        if: ${{ env.RELEASE_MODE == 'true' }}
       
       - name: Build package
         shell: bash
         run: uv build
-        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+        if: ${{ env.RELEASE_MODE == 'true' }}
 
       - name: Upload package to artifact registry
         uses: actions/upload-artifact@v6
         with:
           name: uvtask
           path: dist/
-        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+        if: ${{ env.RELEASE_MODE == 'true' }}
 
       - name: Publish package
         shell: bash
-        run: uv publish
-        if: ${{ env.PIPELINE_TAG == 'true' && env.RELEASE_MODE == 'true' }}
+        run: uv publish --token "${{ secrets.UV_PUBLISH_TOKEN }}"
+        if: ${{ env.RELEASE_MODE == 'true' }}
 
       - name: Clean
         shell: bash
