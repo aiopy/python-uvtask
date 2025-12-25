@@ -49,6 +49,8 @@ jobs:
         shell: bash
         run: |
           if [ -z "${VERSION}" ] || [ "${VERSION}" = "None" ]; then
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+            uv version ${LAST_TAG}
             uv version --bump minor
             VERSION=$(uv version --short)
             echo "VERSION=${VERSION}" >> "${GITHUB_ENV:-/dev/null}"
