@@ -49,14 +49,14 @@ requires-python = ">=3.13"
 
 [dependency-groups]
 dev = [
-    "bandit>=1.9.2", # security-analysis:vulnerabilities
-    "pip-licenses>=5.5.0", # security-analysis:licenses
+    "bandit>=1.9.4", # security-analysis:vulnerabilities
+    "pip-licenses>=5.5.1", # security-analysis:licenses
     "pytest>=9.0.2", # test
     "pytest-cov>=7.0.0", # test, coverage
     "pytest-xdist>=3.8.0", # test
     "radon>=6.0.1", # complexity:visibility
-    "ruff>=0.14.10", # code-formatter, static-analysis:linter
-    "ty>=0.0.7", # static-analysis:types
+    "ruff>=0.15.4", # code-formatter, static-analysis:linter
+    "ty>=0.0.20", # static-analysis:types
     "xenon>=0.9.3", # complexity:enforcement
 ]
 
@@ -158,5 +158,3 @@ clean = { command = """python -c "import shutil, glob; [shutil.rmtree(p, ignore_
 
 [project.scripts]
 uvtask = "uvtask.cli:main"
-run = "uvtask.cli:main"
-run-script = "uvtask.cli:main"
