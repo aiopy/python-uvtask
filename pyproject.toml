@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build"]
+requires = ["uv_build>=0.11.17,<0.11.18"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -54,13 +54,13 @@ requires-python = ">=3.10"
 [dependency-groups]
 dev = [
     "bandit>=1.9.4", # security-analysis:vulnerabilities
-    "pip-licenses>=5.5.1", # security-analysis:licenses
-    "pytest>=9.0.2", # test
-    "pytest-cov>=7.0.0", # test, coverage
+    "pip-licenses>=5.5.5", # security-analysis:licenses
+    "pytest>=9.1.0", # test
+    "pytest-cov>=7.1.0", # test, coverage
     "pytest-xdist>=3.8.0", # test
     "radon>=6.0.1", # complexity:visibility
-    "ruff>=0.15.4", # code-formatter, static-analysis:linter
-    "ty>=0.0.20", # static-analysis:types
+    "ruff>=0.15.17", # code-formatter, static-analysis:linter
+    "ty>=0.0.49", # static-analysis:types
     "xenon>=0.9.3", # complexity:enforcement
 ]
 
@@ -146,7 +146,9 @@ upgrade-dev-install = { command = "uv sync --dev --all-extras --upgrade --refres
 code-formatter = { command = "uv run ruff format uvtask tests", description = "Format code with ruff" }
 security-analysis = { command = ["security-analysis:licenses", "security-analysis:vulnerabilities"], description = "Run all security analysis checks" }
 "security-analysis:licenses" = { command = "uv run pip-licenses", description = "Check third-party dependencies licenses using pip-licenses" }
-"security-analysis:vulnerabilities" = { command = "uv run bandit -r -c pyproject.toml uvtask tests", description = "Scan code for security vulnerabilities using bandit" }
+"security-analysis:vulnerabilities" = { command = ["security-analysis:vulnerabilities:code", "security-analysis:vulnerabilities:pkgs"], description = "Scan code for security vulnerabilities using bandit and audit" }
+"security-analysis:vulnerabilities:code" = { command = "uv run bandit -r -c pyproject.toml uvtask tests", description = "Scan code for security vulnerabilities using bandit" }
+"security-analysis:vulnerabilities:pkgs" = { command = "uv audit", description = "Scan code for security vulnerabilities using audit" }
 static-analysis = { command = ["static-analysis:linter", "static-analysis:types"], description = "Run all static analysis checks" }
 "static-analysis:linter" = { command = "uv run ruff check uvtask tests", description = "Run linter checks using ruff" }
 "static-analysis:types" = { command = "uv run ty check uvtask tests", description = "Run type checks using ty" }

@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from sys import exit, stderr
+from shlex import join as shlex_join  # nosec: B404
+from subprocess import list2cmdline  # nosec: B404
+from sys import exit, platform, stderr  # nosec: B404
 
 from uvtask.colors import color_service, preference_manager
 from uvtask.executor import CommandExecutor
 from uvtask.formatters import CommandMatcher, CustomArgumentParser
+from uvtask.types import ScriptsMapping
 
 
 class CommandValidator:
     def __init__(self, command_matcher: CommandMatcher | None = None):
         self._matcher = command_matcher or CommandMatcher()
 
-    def validate_exists(self, command_name: str, scripts: dict[str, str | list[str]]) -> None:
+    def validate_exists(self, command_name: str, scripts: ScriptsMapping) -> None:
         if command_name not in scripts:
             error_text = color_service.bold_red("error")
             usage_text = color_service.bold_green("Usage:")
@@ -36,7 +39,7 @@ class CommandValidator:
 
 class CommandResolver:
     @staticmethod
-    def resolve_command_references(command: str, all_scripts: dict[str, str | list[str]], visited: set[str] | None = None) -> list[str]:
+    def resolve_command_references(command: str, all_scripts: ScriptsMapping, visited: set[str] | None = None) -> list[str]:
         if visited is None:
             visited = set()
 
@@ -65,7 +68,7 @@ class CommandResolver:
         return result
 
     @staticmethod
-    def resolve_list_references(commands: list[str], all_scripts: dict[str, str | list[str]]) -> list[str]:
+    def resolve_list_references(commands: list[str], all_scripts: ScriptsMapping) -> list[str]:
         resolved = []
         for cmd in commands:
             if cmd in all_scripts:
@@ -75,12 +78,18 @@ class CommandResolver:
         return resolved
 
 
+def _join_script_args(script_args: list[str]) -> str:
+    if platform == "win32":
+        return list2cmdline(script_args)
+    return shlex_join(script_args)
+
+
 class CommandBuilder:
     def __init__(self, resolver: CommandResolver | None = None):
         self._resolver = resolver or CommandResolver()
 
-    def build_commands(self, script: str | list[str], script_args: list[str], all_scripts: dict[str, str | list[str]] | None = None) -> list[str]:
-        script_args_str = " ".join(script_args) if script_args else ""
+    def build_commands(self, script: str | list[str], script_args: list[str], all_scripts: ScriptsMapping | None = None) -> list[str]:
+        script_args_str = _join_script_args(script_args) if script_args else ""
 
         if isinstance(script, str):
             if all_scripts and script in all_scripts:
@@ -103,16 +112,16 @@ class HelpCommandHandler:
     def handle_help(
         self,
         help_command_name: str | None,
-        scripts: dict[str, str | list[str]],
+        scripts: ScriptsMapping,
         script_descriptions: dict[str, str],
-        parser: "CustomArgumentParser",  # type: ignore
+        parser: "CustomArgumentParser",
     ) -> None:
         if help_command_name:
             self._show_command_help(help_command_name, scripts, script_descriptions)
         else:
             self._show_general_help(parser)
 
-    def _validate_command_exists(self, command_name: str, scripts: dict[str, str | list[str]]) -> None:
+    def _validate_command_exists(self, command_name: str, scripts: ScriptsMapping) -> None:
         if command_name not in scripts:
             error_text = color_service.bold_red("error")
             print(f"{error_text}: unknown command '{color_service.yellow(command_name)}'", file=stderr)
@@ -126,7 +135,7 @@ class HelpCommandHandler:
 
             exit(1)
 
-    def _print_description_or_example(self, command_name: str, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
+    def _print_description_or_example(self, command_name: str, scripts: ScriptsMapping, script_descriptions: dict[str, str]) -> None:
         description = script_descriptions.get(command_name, "")
         if description:
             print(description)
@@ -168,7 +177,7 @@ class HelpCommandHandler:
         print(f"Use `{help_cmd_text}` for more information on a specific command.")
         print()
 
-    def _show_command_help(self, command_name: str, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
+    def _show_command_help(self, command_name: str, scripts: ScriptsMapping, script_descriptions: dict[str, str]) -> None:
         self._validate_command_exists(command_name, scripts)
         self._print_description_or_example(command_name, scripts, script_descriptions)
         self._print_usage_info(command_name)

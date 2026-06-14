@@ -4,6 +4,8 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from tomllib import loads
 
+from uvtask.types import ScriptsMapping
+
 
 class PyProjectReader:
     def __init__(self, path: Path):
@@ -74,7 +76,7 @@ class ScriptLoader:
 
     def load_scripts_with_descriptions(
         self,
-    ) -> tuple[dict[str, str | list[str]], dict[str, str]]:
+    ) -> tuple[ScriptsMapping, dict[str, str]]:
         if not self._reader.exists():
             return {}, {}
 

@@ -1,3 +1,6 @@
+import sys
+from shlex import join as shlex_join
+from subprocess import list2cmdline
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +12,12 @@ from uvtask.commands import (
     HelpCommandHandler,
     VerboseOutputHandler,
 )
+
+
+def _expected_script_args_str(script_args: list[str]) -> str:
+    if sys.platform == "win32":
+        return list2cmdline(script_args)
+    return shlex_join(script_args)
 
 
 class TestCommandBuilder:
@@ -55,7 +64,21 @@ class TestCommandBuilder:
     def test_build_invalid_type(self) -> None:
         builder = CommandBuilder()
         with pytest.raises(ValueError, match="Invalid script format"):
-            builder.build_commands(123, [])  # type: ignore[arg-type]
+            builder.build_commands(123, [])  # ty: ignore[invalid-argument-type]
+
+    def test_build_command_quotes_json_kwargs(self) -> None:
+        builder = CommandBuilder()
+        script_args = ["example", "-k", '{"kwarg": "value"}']
+        commands = builder.build_commands("celery -A app call", script_args)
+        expected = f"celery -A app call {_expected_script_args_str(script_args)}"
+        assert commands == [expected]
+
+    def test_build_command_quotes_args_with_spaces(self) -> None:
+        builder = CommandBuilder()
+        script_args = ["hello world"]
+        commands = builder.build_commands("echo", script_args)
+        expected = f"echo {_expected_script_args_str(script_args)}"
+        assert commands == [expected]
 
 
 class TestCommandValidator:

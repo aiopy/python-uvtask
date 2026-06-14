@@ -5,6 +5,7 @@ from sys import argv
 from uvtask.colors import preference_manager
 from uvtask.config import VersionLoader
 from uvtask.formatters import CustomArgumentParser
+from uvtask.types import ScriptsMapping
 
 
 class ArgvParser:
@@ -26,7 +27,7 @@ class ArgvParser:
     def _is_global_flag(self, arg: str) -> bool:
         return arg in ["-V", "--version", "-h", "--help", "--no-hooks", "--ignore-scripts"]
 
-    def parse_global_options(self, scripts: dict[str, str | list[str]]) -> tuple[str | None, list[str], int, int]:
+    def parse_global_options(self, scripts: ScriptsMapping) -> tuple[str | None, list[str], int, int]:
         script_args_list = []
         command_name = None
         skip_next = False
@@ -102,7 +103,7 @@ class ArgumentParserBuilder:
 
         return parser
 
-    def add_subparsers(self, parser: CustomArgumentParser, scripts: dict[str, str | list[str]], script_descriptions: dict[str, str]) -> None:
+    def add_subparsers(self, parser: CustomArgumentParser, scripts: ScriptsMapping, script_descriptions: dict[str, str]) -> None:
         subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
 
         for script_name, script_command in scripts.items():
@@ -117,7 +118,7 @@ class ArgumentParserBuilder:
         help_parser.add_argument("command_name", nargs="?", help="The command to show help for")
 
     @staticmethod
-    def _is_hook(script_name: str, all_scripts: dict[str, str | list[str]]) -> bool:
+    def _is_hook(script_name: str, all_scripts: ScriptsMapping) -> bool:
         for cmd_name in all_scripts.keys():
             if cmd_name == script_name:
                 continue
