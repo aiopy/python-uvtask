@@ -3,6 +3,7 @@ from __future__ import annotations
 from sys import argv, exit, stderr
 
 from uvtask.colors import color_service
+from uvtask.types import ScriptsMapping
 
 
 class HookNameGenerator:
@@ -70,7 +71,7 @@ class HookDiscoverer:
         self._validator = validator
         self._extractor = extractor
 
-    def discover(self, command_name: str, all_scripts: dict[str, str | list[str]]) -> tuple[list[str], list[str]]:
+    def discover(self, command_name: str, all_scripts: ScriptsMapping) -> tuple[list[str], list[str]]:
         composer_pre, composer_post = self._name_generator.composer_names(command_name)
         npm_pre, npm_post = self._name_generator.npm_names(command_name)
 

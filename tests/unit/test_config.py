@@ -87,7 +87,7 @@ for pathname in ['./build', './*.egg-info']:
 
     def test_parse_invalid_type(self) -> None:
         with pytest.raises(ValueError, match="Invalid script value"):
-            ScriptValueParser.parse("test", 123)  # type: ignore[arg-type]
+            ScriptValueParser.parse("test", 123)  # ty: ignore[invalid-argument-type]
 
 
 class TestRunScriptSectionReader:

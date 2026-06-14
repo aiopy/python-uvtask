@@ -15,6 +15,7 @@ from uvtask.executor import command_executor
 from uvtask.formatters import CustomArgumentParser
 from uvtask.hooks import argv_hook_flag_parser, hook_discoverer
 from uvtask.parser import ArgumentParserBuilder, ArgvParser
+from uvtask.types import ScriptsMapping
 
 
 class CliApplication:
@@ -77,7 +78,7 @@ class CliApplication:
             exit(1)
 
     @staticmethod
-    def _validate_reserved_commands(scripts: dict[str, str | list[str]]) -> None:
+    def _validate_reserved_commands(scripts: ScriptsMapping) -> None:
         if "help" in scripts:
             error_text = color_service.bold_red("error")
             print(
