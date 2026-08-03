@@ -41,6 +41,20 @@ uvx uvtask test -k integration   # args forwarded to pytest
 
 For daily use, install once with `uv tool install uvtask`, then run `uvtask` directly.
 
+## Editor extension (VS Code & Cursor)
+
+List and run scripts from the sidebar with [`aiopy.uvtask`](https://github.com/aiopy/vscode-uvtask):
+
+```shell
+# Cursor
+cursor --install-extension aiopy.uvtask
+
+# VS Code
+code --install-extension aiopy.uvtask
+```
+
+Or install a `.vsix` from [vscode-uvtask releases](https://github.com/aiopy/vscode-uvtask/releases) via **Extensions: Install from VSIX…**. Full steps: [vscode-uvtask README](https://github.com/aiopy/vscode-uvtask#install).
+
 ## Features
 
 ### Configuration formats
