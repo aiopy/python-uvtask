@@ -37,6 +37,27 @@ class TestPyProjectReader:
         data = reader.read()
         assert data == {}
 
+    def test_exists_false_for_directory(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.mkdir()
+        reader = PyProjectReader(pyproject_path)
+        assert reader.exists() is False
+
+    def test_read_rejects_oversized_file(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.write_text("[project]\nname = 'test'")
+        reader = PyProjectReader(pyproject_path, max_bytes=8)
+        with pytest.raises(ValueError, match="larger than 8 bytes"):
+            reader.read()
+
+    def test_read_is_cached(self, temp_dir: Path) -> None:
+        pyproject_path = temp_dir / "pyproject.toml"
+        pyproject_path.write_text("[project]\nname = 'first'")
+        reader = PyProjectReader(pyproject_path)
+        assert reader.read()["project"]["name"] == "first"
+        pyproject_path.write_text("[project]\nname = 'second'")
+        assert reader.read()["project"]["name"] == "first"
+
 
 class TestScriptValueParser:
     def test_parse_string(self) -> None:
@@ -81,13 +102,24 @@ for pathname in ['./build', './*.egg-info']:
         assert description == ""
 
     def test_parse_dict_without_command(self) -> None:
-        command, description = ScriptValueParser.parse("test", {"description": "Test"})
-        assert command == "{'description': 'Test'}"
-        assert description == ""
+        with pytest.raises(ValueError, match="missing a 'command' key"):
+            ScriptValueParser.parse("test", {"description": "Test"})
 
     def test_parse_invalid_type(self) -> None:
         with pytest.raises(ValueError, match="Invalid script value"):
             ScriptValueParser.parse("test", 123)  # ty: ignore[invalid-argument-type]
+
+    def test_parse_dict_with_non_string_command(self) -> None:
+        with pytest.raises(ValueError, match="expected a string or a list of strings"):
+            ScriptValueParser.parse("test", {"command": 123})
+
+    def test_parse_list_with_non_string_entry(self) -> None:
+        with pytest.raises(ValueError, match="list entries must be strings"):
+            ScriptValueParser.parse("test", ["echo hello", 123])  # ty: ignore[invalid-argument-type]
+
+    def test_parse_dict_with_non_string_description(self) -> None:
+        with pytest.raises(ValueError, match="'description' must be a string"):
+            ScriptValueParser.parse("test", {"command": "echo hello", "description": 1})
 
 
 class TestRunScriptSectionReader:

@@ -15,6 +15,13 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CD: ${{ vars.CONTINUOUS_DEPLOYMENT }}
   VERSION: ${{ github.event.inputs.version != '' && github.event.inputs.version || 'None' }}
@@ -33,35 +40,40 @@ jobs:
         os: [ubuntu-latest]
         platforms: [linux/amd64]
     steps:
+      # Publish the exact commit that passed CI rather than whatever main points at now.
       - name: Checkout Git repository
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
           fetch-depth: 0
-      
+
       - name: Install uv and set the Python version
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
 
       - name: Install dependencies
         shell: bash
-        run: uvx uvtask dev-install
+        run: uvx uvtask ci-install
 
       - name: Set version
         shell: bash
+        env:
+          GIT_ACTOR: ${{ github.actor }}
+          GIT_ACTOR_ID: ${{ github.actor_id }}
         run: |
           if [ -z "${VERSION}" ] || [ "${VERSION}" = "None" ]; then
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
-            uv version ${LAST_TAG}
+            uv version "${LAST_TAG}"
             uv version --bump minor
             VERSION=$(uv version --short)
             echo "VERSION=${VERSION}" >> "${GITHUB_ENV:-/dev/null}"
           else
-            uv version ${VERSION}
+            uv version "${VERSION}"
           fi
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git config user.name "${GIT_ACTOR}"
+          git config user.email "${GIT_ACTOR_ID}+${GIT_ACTOR}@users.noreply.github.com"
           git tag -a "${VERSION}" -m "Release ${VERSION}"
           git push origin "${VERSION}"
-      
+
       - name: Build package
         shell: bash
         run: uv build
@@ -74,8 +86,11 @@ jobs:
 
       - name: Publish package
         shell: bash
-        run: uv publish --token "${{ secrets.UV_PUBLISH_TOKEN }}"
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
+        run: uv publish
 
       - name: Clean
+        if: always()
         shell: bash
         run: uvx uvtask clean

@@ -8,7 +8,7 @@ class TestArgvParser:
     def test_parse_global_options_simple_command(self) -> None:
         parser = ArgvParser(["uvtask", "test"])
         scripts = {"test": "echo test"}
-        command, args, quiet, verbose = parser.parse_global_options(scripts)
+        command, args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert command == "test"
         assert args == []
         assert quiet == 0
@@ -17,7 +17,7 @@ class TestArgvParser:
     def test_parse_global_options_with_args(self) -> None:
         parser = ArgvParser(["uvtask", "test", "arg1", "arg2"])
         scripts = {"test": "echo test"}
-        command, args, quiet, verbose = parser.parse_global_options(scripts)
+        command, args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert command == "test"
         assert args == ["arg1", "arg2"]
         assert quiet == 0
@@ -26,28 +26,28 @@ class TestArgvParser:
     def test_parse_quiet_flag(self) -> None:
         parser = ArgvParser(["uvtask", "-q", "test"])
         scripts = {"test": "echo test"}
-        _command, _args, quiet, verbose = parser.parse_global_options(scripts)
+        _command, _args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert quiet == 1
         assert verbose == 0
 
     def test_parse_multiple_quiet_flags(self) -> None:
         parser = ArgvParser(["uvtask", "-q", "-q", "test"])
         scripts = {"test": "echo test"}
-        _command, _args, quiet, verbose = parser.parse_global_options(scripts)
+        _command, _args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert quiet == 2
         assert verbose == 0
 
     def test_parse_verbose_flag(self) -> None:
         parser = ArgvParser(["uvtask", "-v", "test"])
         scripts = {"test": "echo test"}
-        _command, _args, quiet, verbose = parser.parse_global_options(scripts)
+        _command, _args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert quiet == 0
         assert verbose == 1
 
     def test_parse_multiple_verbose_flags(self) -> None:
         parser = ArgvParser(["uvtask", "-v", "-v", "test"])
         scripts = {"test": "echo test"}
-        _command, _args, quiet, verbose = parser.parse_global_options(scripts)
+        _command, _args, quiet, verbose, _no_hooks = parser.parse_global_options(scripts)
         assert quiet == 0
         assert verbose == 2
 
@@ -55,7 +55,7 @@ class TestArgvParser:
     def test_parse_color_flag(self, mock_pref: MagicMock) -> None:
         parser = ArgvParser(["uvtask", "--color", "never", "test"])
         scripts = {"test": "echo test"}
-        command, _args, _quiet, _verbose = parser.parse_global_options(scripts)
+        command, _args, _quiet, _verbose, _no_hooks = parser.parse_global_options(scripts)
         assert command == "test"
         mock_pref.set_preference_from_string.assert_called_once_with("never")
 
@@ -63,23 +63,39 @@ class TestArgvParser:
         parser = ArgvParser(["uvtask", "--color=always", "test"])
         scripts = {"test": "echo test"}
         with patch("uvtask.parser.preference_manager") as mock_pref:
-            command, _args, _quiet, _verbose = parser.parse_global_options(scripts)
+            command, _args, _quiet, _verbose, _no_hooks = parser.parse_global_options(scripts)
             assert command == "test"
             mock_pref.set_preference_from_string.assert_called_once_with("always")
 
     def test_parse_help_command(self) -> None:
         parser = ArgvParser(["uvtask", "help", "test"])
         scripts = {"test": "echo test"}
-        command, args, _quiet, _verbose = parser.parse_global_options(scripts)
+        command, args, _quiet, _verbose, _no_hooks = parser.parse_global_options(scripts)
         assert command == "help"
         assert args == ["test"]
 
     def test_parse_no_command(self) -> None:
         parser = ArgvParser(["uvtask", "--version"])
         scripts = {}
-        command, args, _quiet, _verbose = parser.parse_global_options(scripts)
+        command, args, _quiet, _verbose, _no_hooks = parser.parse_global_options(scripts)
         assert command is None
         assert args == []
+
+    def test_no_hooks_before_command(self) -> None:
+        parser = ArgvParser(["uvtask", "--no-hooks", "test"])
+        _command, _args, _quiet, _verbose, no_hooks = parser.parse_global_options({"test": "echo test"})
+        assert no_hooks is True
+
+    def test_ignore_scripts_before_command(self) -> None:
+        parser = ArgvParser(["uvtask", "--ignore-scripts", "test"])
+        _command, _args, _quiet, _verbose, no_hooks = parser.parse_global_options({"test": "echo test"})
+        assert no_hooks is True
+
+    def test_no_hooks_after_command_is_forwarded_not_consumed(self) -> None:
+        parser = ArgvParser(["uvtask", "test", "--no-hooks"])
+        _command, args, _quiet, _verbose, no_hooks = parser.parse_global_options({"test": "echo test"})
+        assert no_hooks is False
+        assert args == ["--no-hooks"]
 
 
 class TestArgumentParserBuilder:

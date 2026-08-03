@@ -115,3 +115,7 @@ class TestArgvHookFlagParser:
     @patch("uvtask.hooks.argv", ["uvtask", "test"])
     def test_parse_no_flag(self) -> None:
         assert ArgvHookFlagParser.parse_no_hooks() is False
+
+    def test_parse_explicit_args(self) -> None:
+        assert ArgvHookFlagParser.parse_no_hooks(["--no-hooks"]) is True
+        assert ArgvHookFlagParser.parse_no_hooks([]) is False

@@ -142,6 +142,28 @@ static-analysis = { command = ["static-analysis:linter", "static-analysis:types"
 | `-V` / `--version` | Print version |
 | `-h` / `--help` | Print general help |
 
+## Security model
+
+`uvtask` runs the shell strings written in `pyproject.toml`, so a project's manifest is trusted
+exactly like a `Makefile` or an npm script: opening a repository is safe, running one of its
+commands is not. Treat `uvx uvtask <command>` in an unfamiliar repository the same way you would
+treat `npm run`.
+
+Everything else is treated as untrusted:
+
+- **Forwarded arguments** are quoted before reaching the shell — `shlex.join` on Unix, and
+  `list2cmdline` plus caret-escaping of `cmd.exe` metacharacters on Windows — so a value like
+  `foo&whoami` is passed through as data rather than run as a second command.
+- **Script names and descriptions** are stripped of terminal control characters before display,
+  so a manifest cannot rewrite what you see in `--help` or `uvtask help <command>`.
+- **Malformed scripts are rejected** rather than coerced. A table without a `command` key, a
+  non-string command, a circular reference, or a reference graph that expands past 512 commands
+  fails with a config error instead of being handed to the shell.
+
+Hooks are skipped only by `--no-hooks` / `--ignore-scripts` placed *before* the command name.
+The same flag after the command name is forwarded to the underlying script, so arguments meant
+for a child process cannot silently bypass a guard hook.
+
 ## Comparison
 
 | Tool | Best for | uvtask difference |

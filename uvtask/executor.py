@@ -7,6 +7,14 @@ from uvtask.colors import color_service, preference_manager
 
 
 class CommandExecutor:
+    """Runs the shell strings authored in pyproject.toml.
+
+    shell=True is required: scripts are free-form shell (pipes, redirection, multiline
+    blocks), so the manifest is trusted the same way a Makefile or npm script is.
+    Arguments forwarded from the CLI are *not* trusted and are quoted by
+    commands._join_script_args before they reach this point.
+    """
+
     def _print_verbose_command(self, command: str) -> None:
         cmd_text = color_service.bold_teal(f"Running: {command}") if preference_manager.supports_color() else f"Running: {command}"
         print(cmd_text, file=stderr)
@@ -16,6 +24,7 @@ class CommandExecutor:
         print(exit_text, file=stderr)
 
     def _execute_quiet(self, command: str, quiet_count: int, verbose_count: int) -> int:
+        # See the class docstring for why shell=True is intended here.
         result = run(
             command,
             shell=True,
@@ -28,6 +37,7 @@ class CommandExecutor:
         return result.returncode
 
     def _execute_normal(self, command: str, verbose_count: int) -> int:
+        # See the class docstring for why shell=True is intended here.
         result = run(command, check=False, shell=True)  # nosec B602
         if verbose_count > 0:
             self._print_verbose_exit_code(result.returncode)

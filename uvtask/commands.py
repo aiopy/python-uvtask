@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from shlex import join as shlex_join  # nosec: B404
-from subprocess import list2cmdline  # nosec: B404
-from sys import exit, platform, stderr  # nosec: B404
+from shlex import join as shlex_join
+from subprocess import list2cmdline  # nosec B404
+from sys import exit, platform, stderr
 
 from uvtask.colors import color_service, preference_manager
 from uvtask.executor import CommandExecutor
-from uvtask.formatters import CommandMatcher, CustomArgumentParser
+from uvtask.formatters import CommandMatcher, CustomArgumentParser, sanitize_terminal_text
 from uvtask.types import ScriptsMapping
+
+MAX_RESOLVED_COMMANDS = 512
+MAX_RESOLUTION_DEPTH = 64
 
 
 class CommandValidator:
@@ -37,34 +40,45 @@ class CommandValidator:
             exit(1)
 
 
+def _ensure_within_limit(resolved: list[str], command: str) -> None:
+    if len(resolved) > MAX_RESOLVED_COMMANDS:
+        raise ValueError(f"'{command}' expands to more than {MAX_RESOLVED_COMMANDS} commands")
+
+
 class CommandResolver:
     @staticmethod
-    def resolve_command_references(command: str, all_scripts: ScriptsMapping, visited: set[str] | None = None) -> list[str]:
-        if visited is None:
-            visited = set()
+    def resolve_command_references(command: str, all_scripts: ScriptsMapping, path: list[str] | None = None) -> list[str]:
+        if path is None:
+            path = []
 
-        if command in visited:
-            raise ValueError(f"Circular reference detected: {' -> '.join(visited)} -> {command}")
+        if command in path:
+            raise ValueError(f"Circular reference detected: {' -> '.join(path)} -> {command}")
+
+        # Each list reference multiplies the expansion, so without a depth bound a handful
+        # of nested references resolve to millions of commands.
+        if len(path) >= MAX_RESOLUTION_DEPTH:
+            raise ValueError(f"'{command}' is nested more than {MAX_RESOLUTION_DEPTH} references deep")
 
         if command not in all_scripts:
             return [command]
 
-        visited.add(command)
         referenced_script = all_scripts[command]
+        child_path = [*path, command]
 
         if isinstance(referenced_script, str):
-            result = CommandResolver.resolve_command_references(referenced_script, all_scripts, visited.copy())
+            result = CommandResolver.resolve_command_references(referenced_script, all_scripts, child_path)
         elif isinstance(referenced_script, list):
             result = []
             for cmd in referenced_script:
                 if cmd in all_scripts:
-                    result.extend(CommandResolver.resolve_command_references(cmd, all_scripts, visited.copy()))
+                    result.extend(CommandResolver.resolve_command_references(cmd, all_scripts, child_path))
                 else:
                     result.append(cmd)
+                _ensure_within_limit(result, command)
         else:
-            result = [str(referenced_script)]
+            raise ValueError(f"Invalid script format for '{command}': expected a string or a list of strings")
 
-        visited.remove(command)
+        _ensure_within_limit(result, command)
         return result
 
     @staticmethod
@@ -75,12 +89,22 @@ class CommandResolver:
                 resolved.extend(CommandResolver.resolve_command_references(cmd, all_scripts))
             else:
                 resolved.append(cmd)
+            _ensure_within_limit(resolved, cmd)
         return resolved
+
+
+# cmd.exe consumes these before the child process parses its own argv, so list2cmdline
+# quoting alone still lets `foo&whoami` run as two commands.
+_CMD_METACHARACTERS = frozenset('^&|<>()"%!')
+
+
+def _quote_for_cmd(arg: str) -> str:
+    return "".join(f"^{char}" if char in _CMD_METACHARACTERS else char for char in list2cmdline([arg]))
 
 
 def _join_script_args(script_args: list[str]) -> str:
     if platform == "win32":
-        return list2cmdline(script_args)
+        return " ".join(_quote_for_cmd(arg) for arg in script_args)
     return shlex_join(script_args)
 
 
@@ -136,7 +160,7 @@ class HelpCommandHandler:
             exit(1)
 
     def _print_description_or_example(self, command_name: str, scripts: ScriptsMapping, script_descriptions: dict[str, str]) -> None:
-        description = script_descriptions.get(command_name, "")
+        description = sanitize_terminal_text(script_descriptions.get(command_name, ""))
         if description:
             print(description)
             return
@@ -150,6 +174,7 @@ class HelpCommandHandler:
         actual_command = scripts.get(command_name, "...")
         if isinstance(actual_command, list):
             actual_command = actual_command[0] if actual_command else "..."
+        actual_command = sanitize_terminal_text(actual_command)
         escaped_command = actual_command.replace('"', '\\"').replace('\n', '\\n')
         if len(actual_command) > 50 or '\n' in actual_command:
             example_cmd = (

@@ -6,37 +6,61 @@ from tomllib import loads
 
 from uvtask.types import ScriptsMapping
 
+MAX_PYPROJECT_BYTES = 5 * 1024 * 1024
+
 
 class PyProjectReader:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, max_bytes: int = MAX_PYPROJECT_BYTES):
         self._path = path
+        self._max_bytes = max_bytes
+        self._cache: dict | None = None
 
     def exists(self) -> bool:
-        return self._path.exists()
+        return self._path.is_file()
 
     def read(self) -> dict:
-        if not self.exists():
+        if self._cache is not None:
+            return self._cache
+
+        try:
+            with open(self._path, "rb") as file:
+                content = file.read(self._max_bytes + 1)
+        except OSError:
             return {}
-        with open(self._path) as file:
-            return loads(file.read())
+
+        if len(content) > self._max_bytes:
+            raise ValueError(f"{self._path} is larger than {self._max_bytes} bytes")
+
+        self._cache = loads(content.decode())
+        return self._cache
 
 
 class ScriptValueParser:
     @staticmethod
+    def _parse_command(script_name: str, cmd_value: object) -> str | list[str]:
+        if isinstance(cmd_value, str):
+            return cmd_value
+        if isinstance(cmd_value, list):
+            commands: list[str] = []
+            for item in cmd_value:
+                if not isinstance(item, str):
+                    raise ValueError(f"Invalid script value for '{script_name}': list entries must be strings")
+                commands.append(item)
+            return commands
+        raise ValueError(f"Invalid script value for '{script_name}': expected a string or a list of strings")
+
+    @staticmethod
     def parse(script_name: str, script_value: str | list[str] | dict) -> tuple[str | list[str], str]:
-        if isinstance(script_value, str):
-            return script_value, ""
-        elif isinstance(script_value, list):
-            return script_value, ""
-        elif isinstance(script_value, dict):
+        if isinstance(script_value, str | list):
+            return ScriptValueParser._parse_command(script_name, script_value), ""
+        if isinstance(script_value, dict):
             if "command" not in script_value:
-                return str(script_value), ""
-            cmd_value = script_value["command"]
+                raise ValueError(f"Invalid script value for '{script_name}': table is missing a 'command' key")
             description = script_value.get("description", "")
-            if isinstance(cmd_value, list):
-                return cmd_value, description
-            return cmd_value, description
-        raise ValueError(f"Invalid script value: {script_value}")
+            if not isinstance(description, str):
+                raise ValueError(f"Invalid script value for '{script_name}': 'description' must be a string")
+            return ScriptValueParser._parse_command(script_name, script_value["command"]), description
+        raise ValueError(f"Invalid script value for '{script_name}': expected a string, a list of strings, or a table")
 
 
 class RunScriptSectionReader:
@@ -69,7 +93,7 @@ class ScriptLoader:
         for script_name, script_value in run_script.items():
             command, _ = self._parser.parse(script_name, script_value)
             if isinstance(command, list):
-                scripts[script_name] = str(command[0]) if command else ""
+                scripts[script_name] = command[0] if command else ""
             else:
                 scripts[script_name] = command
         return scripts
