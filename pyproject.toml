@@ -112,7 +112,8 @@ lint.select = [
 ]
 lint.ignore = [
     "PLR0913",
-    "PLR2004", 
+    "PLR0917",
+    "PLR2004",
 ]
 
 [tool.ruff.format]
