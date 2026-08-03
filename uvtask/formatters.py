@@ -8,6 +8,14 @@ from typing import ClassVar, NoReturn, Sequence
 
 from uvtask.colors import color_service, preference_manager
 
+# Script names and descriptions come from pyproject.toml, so dropping ESC and the other
+# control characters keeps a hostile manifest from rewriting what the terminal displays.
+_UNSAFE_TERMINAL_CHARS = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
+
+
+def sanitize_terminal_text(text: str) -> str:
+    return _UNSAFE_TERMINAL_CHARS.sub('', text)
+
 
 class CommandMatcher:
     def find_similar(self, command: str, available_commands: list[str]) -> str | None:  # noqa: C901
@@ -52,7 +60,7 @@ class CommandMatcher:
             if score > best_score and score > 0.4:
                 best_score = score
                 best_match = available_cmd
-        return best_match
+        return sanitize_terminal_text(best_match) if best_match is not None else None
 
 
 class AnsiStripper:
@@ -361,7 +369,7 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
     def _calculate_max_command_width(self, action: argparse._SubParsersAction) -> int:
         max_cmd_width = 24
         for choice in action.choices.keys():
-            clean_choice = self._ansi_stripper.strip(choice)
+            clean_choice = self._ansi_stripper.strip(sanitize_terminal_text(choice))
             max_cmd_width = max(max_cmd_width, len(clean_choice))
         return max_cmd_width + 2
 
@@ -374,6 +382,7 @@ class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
         return choices_help
 
     def _format_command_line(self, choice: str, help_text: str, width: int) -> list[str]:
+        choice = sanitize_terminal_text(choice)
         cmd_name = color_service.bold_teal(choice) if preference_manager.supports_color() else choice
         clean_cmd = self._ansi_stripper.strip(cmd_name)
 

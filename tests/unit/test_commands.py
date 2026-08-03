@@ -1,23 +1,18 @@
-import sys
-from shlex import join as shlex_join
 from subprocess import list2cmdline
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from uvtask.commands import (
+    MAX_RESOLUTION_DEPTH,
     CommandBuilder,
     CommandExecutorOrchestrator,
     CommandValidator,
     HelpCommandHandler,
     VerboseOutputHandler,
+    _join_script_args,
+    _quote_for_cmd,
 )
-
-
-def _expected_script_args_str(script_args: list[str]) -> str:
-    if sys.platform == "win32":
-        return list2cmdline(script_args)
-    return shlex_join(script_args)
 
 
 class TestCommandBuilder:
@@ -66,19 +61,78 @@ class TestCommandBuilder:
         with pytest.raises(ValueError, match="Invalid script format"):
             builder.build_commands(123, [])  # ty: ignore[invalid-argument-type]
 
+    def test_build_referenced_invalid_type(self) -> None:
+        builder = CommandBuilder()
+        with pytest.raises(ValueError, match="Invalid script format"):
+            builder.build_commands("broken", [], {"broken": 123})  # ty: ignore[invalid-argument-type]
+
+    def test_build_rejects_exponential_expansion(self) -> None:
+        builder = CommandBuilder()
+        depth = 24
+        scripts: dict[str, str | list[str]] = {f"s{i}": [f"s{i + 1}", f"s{i + 1}"] for i in range(depth)}
+        scripts[f"s{depth}"] = "echo leaf"
+        with pytest.raises(ValueError, match="expands to more than"):
+            builder.build_commands("s0", [], scripts)
+
+    def test_build_rejects_deep_nesting(self) -> None:
+        builder = CommandBuilder()
+        depth = MAX_RESOLUTION_DEPTH + 2
+        scripts: dict[str, str | list[str]] = {f"s{i}": f"s{i + 1}" for i in range(depth)}
+        scripts[f"s{depth}"] = "echo leaf"
+        with pytest.raises(ValueError, match="references deep"):
+            builder.build_commands("s0", [], scripts)
+
     def test_build_command_quotes_json_kwargs(self) -> None:
         builder = CommandBuilder()
         script_args = ["example", "-k", '{"kwarg": "value"}']
         commands = builder.build_commands("celery -A app call", script_args)
-        expected = f"celery -A app call {_expected_script_args_str(script_args)}"
-        assert commands == [expected]
+        assert commands == [f"celery -A app call {_join_script_args(script_args)}"]
 
     def test_build_command_quotes_args_with_spaces(self) -> None:
         builder = CommandBuilder()
         script_args = ["hello world"]
         commands = builder.build_commands("echo", script_args)
-        expected = f"echo {_expected_script_args_str(script_args)}"
-        assert commands == [expected]
+        assert commands == [f"echo {_join_script_args(script_args)}"]
+
+
+def _strip_carets(text: str) -> str:
+    result = []
+    index = 0
+    while index < len(text):
+        if text[index] == "^" and index + 1 < len(text):
+            index += 1
+        result.append(text[index])
+        index += 1
+    return "".join(result)
+
+
+class TestCmdQuoting:
+    @pytest.mark.parametrize(
+        ("arg", "expected"),
+        [
+            ("plain", "plain"),
+            ("foo&whoami", "foo^&whoami"),
+            ("a|b", "a^|b"),
+            ("a>out", "a^>out"),
+            ("%USERPROFILE%", "^%USERPROFILE^%"),
+            ("x^y", "x^^y"),
+            ("a(b)", "a^(b^)"),
+        ],
+    )
+    def test_metacharacters_are_escaped(self, arg: str, expected: str) -> None:
+        assert _quote_for_cmd(arg) == expected
+
+    def test_arg_with_spaces_is_quoted_and_escaped(self) -> None:
+        # list2cmdline supplies the quotes the child needs; the carets stop cmd.exe from
+        # acting on the metacharacter before the child ever sees it.
+        assert _quote_for_cmd("hello & world") == '^"hello ^& world^"'
+
+    @pytest.mark.parametrize("char", list('^&|<>()"%!'))
+    def test_every_metacharacter_is_escaped_reversibly(self, char: str) -> None:
+        arg = f"a{char}b"
+        quoted = _quote_for_cmd(arg)
+        assert f"^{char}" in quoted
+        assert _strip_carets(quoted) == list2cmdline([arg])
 
 
 class TestCommandValidator:

@@ -4,7 +4,8 @@ from sys import argv
 
 from uvtask.colors import preference_manager
 from uvtask.config import VersionLoader
-from uvtask.formatters import CustomArgumentParser
+from uvtask.formatters import CustomArgumentParser, sanitize_terminal_text
+from uvtask.hooks import argv_hook_flag_parser
 from uvtask.types import ScriptsMapping
 
 
@@ -27,8 +28,9 @@ class ArgvParser:
     def _is_global_flag(self, arg: str) -> bool:
         return arg in ["-V", "--version", "-h", "--help", "--no-hooks", "--ignore-scripts"]
 
-    def parse_global_options(self, scripts: ScriptsMapping) -> tuple[str | None, list[str], int, int]:
+    def parse_global_options(self, scripts: ScriptsMapping) -> tuple[str | None, list[str], int, int, bool]:
         script_args_list = []
+        global_args = []
         command_name = None
         skip_next = False
         quiet_count = 0
@@ -46,13 +48,14 @@ class ArgvParser:
                 verbose_count += 1
                 continue
             if self._is_global_flag(arg):
+                global_args.append(arg)
                 continue
             if arg in scripts or arg == "help":
                 command_name = arg
                 script_args_list = self._argv[i + 1 :]
                 break
 
-        return command_name, script_args_list, quiet_count, verbose_count
+        return command_name, script_args_list, quiet_count, verbose_count, argv_hook_flag_parser.parse_no_hooks(global_args)
 
 
 class ArgumentParserBuilder:
@@ -110,9 +113,8 @@ class ArgumentParserBuilder:
             if self._is_hook(script_name, scripts):
                 continue
 
-            description = script_descriptions.get(script_name, f"Run {script_name}")
-            help_text = script_descriptions.get(script_name, f"Run {script_name}")
-            subparsers.add_parser(script_name, help=help_text, description=description)
+            help_text = sanitize_terminal_text(script_descriptions.get(script_name, f"Run {script_name}"))
+            subparsers.add_parser(script_name, help=help_text, description=help_text)
 
         help_parser = subparsers.add_parser("help", help="Display documentation for a command", description="Display documentation for a command")
         help_parser.add_argument("command_name", nargs="?", help="The command to show help for")

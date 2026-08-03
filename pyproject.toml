@@ -112,7 +112,8 @@ lint.select = [
 ]
 lint.ignore = [
     "PLR0913",
-    "PLR2004", 
+    "PLR0917",
+    "PLR2004",
 ]
 
 [tool.ruff.format]
@@ -139,10 +140,12 @@ exclude = [
 ]
 
 [tool.run-script]
-install = { command = "uv sync --frozen --no-dev", description = "Install dependencies as specified in lockfile, excluding dev dependencies" }
-upgrade-install = { command = "uv sync --frozen --no-dev --upgrade --refresh", description = "Upgrade and refresh installation of non-dev dependencies" }
+install = { command = "uv sync --no-dev", description = "Install dependencies as specified in lockfile, excluding dev dependencies" }
+upgrade-install = { command = "uv sync --no-dev --upgrade --refresh", description = "Upgrade and refresh installation of non-dev dependencies" }
 dev-install = { command = "uv sync --dev --all-extras", description = "Install all dependencies including dev and extras" }
+ci-install = { command = "uv sync --frozen --dev --all-extras", description = "Install all dependencies from the lockfile without updating it" }
 upgrade-dev-install = { command = "uv sync --dev --all-extras --upgrade --refresh", description = "Upgrade and refresh installation of all dependencies including dev and extras" }
+cve-upgrade = { command = """uv run --no-project --quiet python -c "import os, subprocess, sys; pkgs = sys.argv[1:]; sys.exit(subprocess.run(['uv', 'lock', *[arg for pkg in pkgs for arg in ('--upgrade-package', pkg, '--exclude-newer-package', f'{pkg}=false')]], env={**os.environ, 'UV_EXCLUDE_NEWER': 'P0D'}).returncode if pkgs else print('Usage: uvtask cve-upgrade PACKAGE [PACKAGE ...]', file=sys.stderr) or 1)" """, description = "Relock the given packages against the newest releases to pick up CVE fixes" }
 code-formatter = { command = "uv run ruff format uvtask tests", description = "Format code with ruff" }
 security-analysis = { command = ["security-analysis:licenses", "security-analysis:vulnerabilities"], description = "Run all security analysis checks" }
 "security-analysis:licenses" = { command = "uv run pip-licenses", description = "Check third-party dependencies licenses using pip-licenses" }

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from sys import exit, stderr
+from tomllib import TOMLDecodeError
+from typing import NoReturn
 
 from uvtask.colors import color_service
 from uvtask.commands import (
@@ -13,7 +15,7 @@ from uvtask.commands import (
 from uvtask.config import ScriptLoader, VersionLoader, script_loader, version_loader
 from uvtask.executor import command_executor
 from uvtask.formatters import CustomArgumentParser
-from uvtask.hooks import argv_hook_flag_parser, hook_discoverer
+from uvtask.hooks import hook_discoverer
 from uvtask.parser import ArgumentParserBuilder, ArgvParser
 from uvtask.types import ScriptsMapping
 
@@ -41,13 +43,13 @@ class CliApplication:
 
     def run(self) -> None:
         self._validate_pyproject_exists()
-        scripts, script_descriptions = self._script_loader.load_scripts_with_descriptions()
+        scripts, script_descriptions = self._load_scripts()
         self._validate_reserved_commands(scripts)
 
         parser = self._parser_builder.build_main_parser()
         self._parser_builder.add_subparsers(parser, scripts, script_descriptions)
 
-        command_name, script_args, quiet_count, verbose_count = self._argv_parser.parse_global_options(scripts)
+        command_name, script_args, quiet_count, verbose_count, no_hooks = self._argv_parser.parse_global_options(scripts)
 
         if not command_name:
             command_name = self._get_command_from_argparse(parser)
@@ -63,12 +65,28 @@ class CliApplication:
             self._command_validator.validate_exists(command_name, scripts)
             return
 
-        no_hooks = argv_hook_flag_parser.parse_no_hooks()
-        pre_hooks, post_hooks = hook_discoverer.discover(command_name, scripts) if not no_hooks else ([], [])
+        pre_hooks, post_hooks = ([], []) if no_hooks else hook_discoverer.discover(command_name, scripts)
 
-        main_commands = self._command_builder.build_commands(script, script_args, scripts)
+        main_commands = self._build_commands(script, script_args, scripts)
 
         self._executor_orchestrator.execute(command_name, main_commands, pre_hooks, post_hooks, quiet_count, verbose_count)
+
+    def _load_scripts(self) -> tuple[ScriptsMapping, dict[str, str]]:
+        try:
+            return self._script_loader.load_scripts_with_descriptions()
+        except (TOMLDecodeError, UnicodeDecodeError, ValueError) as error:
+            self._exit_with_config_error(error)
+
+    def _build_commands(self, script: str | list[str], script_args: list[str], scripts: ScriptsMapping) -> list[str]:
+        try:
+            return self._command_builder.build_commands(script, script_args, scripts)
+        except ValueError as error:
+            self._exit_with_config_error(error)
+
+    @staticmethod
+    def _exit_with_config_error(error: Exception) -> NoReturn:
+        print(f"{color_service.bold_red('error')}: invalid pyproject.toml: {error}", file=stderr)
+        exit(1)
 
     @staticmethod
     def _validate_pyproject_exists() -> None:
@@ -97,7 +115,7 @@ class CliApplication:
             return args.command
         except SystemExit:
             raise
-        except:  # noqa: E722
+        except Exception:
             parser.print_help()
             exit(1)
 

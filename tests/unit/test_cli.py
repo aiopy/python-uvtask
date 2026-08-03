@@ -83,7 +83,7 @@ class TestCliApplication:
             mock_parser = MagicMock()
             mock_parser_builder.build_main_parser.return_value = mock_parser
             mock_argv_parser = MagicMock()
-            mock_argv_parser.parse_global_options.return_value = ("test", [], 0, 0)
+            mock_argv_parser.parse_global_options.return_value = ("test", [], 0, 0, False)
             mock_validator = MagicMock()
             mock_builder = MagicMock()
             mock_builder.build_commands.return_value = ["echo test"]
@@ -120,7 +120,7 @@ class TestCliApplication:
             mock_parser = MagicMock()
             mock_parser_builder.build_main_parser.return_value = mock_parser
             mock_argv_parser = MagicMock()
-            mock_argv_parser.parse_global_options.return_value = ("help", [], 0, 0)
+            mock_argv_parser.parse_global_options.return_value = ("help", [], 0, 0, False)
             mock_validator = MagicMock()
             mock_builder = MagicMock()
             mock_help_handler = MagicMock()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sys import argv, exit, stderr
+from typing import ClassVar
 
 from uvtask.colors import color_service
 from uvtask.types import ScriptsMapping
@@ -99,9 +100,14 @@ class HookDiscoverer:
 
 
 class ArgvHookFlagParser:
+    FLAGS: ClassVar[tuple[str, ...]] = ("--no-hooks", "--ignore-scripts")
+
     @staticmethod
-    def parse_no_hooks() -> bool:
-        return "--no-hooks" in argv or "--ignore-scripts" in argv
+    def parse_no_hooks(args: list[str] | None = None) -> bool:
+        # Only arguments before the command name are ours; anything after it belongs to the
+        # script, so scanning the whole argv would let a forwarded flag skip guard hooks.
+        candidates = argv[1:] if args is None else args
+        return any(arg in ArgvHookFlagParser.FLAGS for arg in candidates)
 
 
 name_generator = HookNameGenerator()
