@@ -10,6 +10,8 @@ A task runner for `pyproject.toml` scripts, optimized for the uv workflow.
 
 Define commands once in TOML, run them with `uvx uvtask` from any machine — zero runtime dependencies in your project.
 
+Editor sidebar for VS Code and Cursor: [aiopy/vscode-uvtask](https://github.com/aiopy/vscode-uvtask).
+
 ## Why uvtask
 
 - **Run anywhere with `uvx`** — no install required; zero runtime dependencies
@@ -43,7 +45,7 @@ For daily use, install once with `uv tool install uvtask`, then run `uvtask` dir
 
 ## Editor extension (VS Code & Cursor)
 
-List and run scripts from the sidebar with [`aiopy.uvtask`](https://github.com/aiopy/vscode-uvtask):
+List and run scripts from the sidebar with the [vscode-uvtask](https://github.com/aiopy/vscode-uvtask) extension (`aiopy.uvtask`):
 
 ```shell
 # Cursor
@@ -53,7 +55,7 @@ cursor --install-extension aiopy.uvtask
 code --install-extension aiopy.uvtask
 ```
 
-Or install a `.vsix` from [vscode-uvtask releases](https://github.com/aiopy/vscode-uvtask/releases) via **Extensions: Install from VSIX…**. Full steps: [vscode-uvtask README](https://github.com/aiopy/vscode-uvtask#install).
+Or install a `.vsix` from [Releases](https://github.com/aiopy/vscode-uvtask/releases) via **Extensions: Install from VSIX…**. Full steps: [install guide](https://github.com/aiopy/vscode-uvtask#install).
 
 ## Features
 
